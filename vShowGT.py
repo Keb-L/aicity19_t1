@@ -28,9 +28,14 @@ def main(argv):
     gt = csv.reader(csv_file)
     cap = cv2.VideoCapture(vpath)
     fps = cap.get(cv2.CAP_PROP_FPS)
-    delay = 1 / fps
+    delay = 1 / (fps * 5)
     # Bounding Region
     bb = list(map(int, gt.__next__()))
+
+    # frame_width = int(cap.get(3) * scale)
+    # frame_height = int(cap.get(4) * scale)
+    # fourcc = cv2.VideoWriter_fourcc('F','M','P','4')
+    # vwrite = cv2.VideoWriter('vdo16_overlay.avi', fourcc, 10, (frame_width, frame_height))
 
     fcount = 1
     while (True):
@@ -61,6 +66,8 @@ def main(argv):
         # Display the resulting frame
         cv2.imshow('frame', frame)
 
+        vwrite.write(frame)
+
         kp = cv2.waitKey(1)
         if kp & 0xFF == ord('q'):
             break
@@ -74,6 +81,7 @@ def main(argv):
         sleep(delay)
     # When everything done, release the capture
     cap.release()
+    vwrite.release()
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
