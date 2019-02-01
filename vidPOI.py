@@ -23,6 +23,7 @@ import cv2
 import sys
 import DataIO
 import os
+import Image2World
 from functools import total_ordering
 
 with open('./lib/list_cam_u.txt') as f:
@@ -38,11 +39,15 @@ scale = 0.5
 def main(argv):
     # annotate_image(argv)
     # temp = DataIO.load_obj("./obj", "cam_vect.pkl")
-    # sv_LabelVect("./obj", "cam_vect.txt", temp)
-    temp = ld_LabelVect("./obj", "cam_vect.txt")
-    temp[5].UID = 5
 
-    LabeledVector.resetUIN(temp)
+    temp = ld_LabelVect("./obj", "cam_vect2.txt")
+    # sv_LabelVect("./obj", "cam_vect2.txt", temp)
+    # temp[5].UID = 5
+    print(temp[1])
+
+    LabeledVector.resetUID(temp)
+
+    show_markedimg(argv, temp)
 
     if not hasUniqueUID(temp):
         raise Exception("LabeledVect UID is not unique!")
@@ -66,38 +71,46 @@ def annotate_image(argv):
 
     if argv:
         argv = list(map(int, argv))
+    else:
+        argv = [1, 40]
 
     for camid in range(argv[0] - 1, argv[1]):
         vpath = FPATH[camid] + "vdo.avi"
 
         overlay = []
         # Type 0 = Enter, Type 1 = Exit
-        ret_en, overlay = get_annotation(vpath, camid + 1, type=0)
-        ret_ex, overlay = get_annotation(vpath, camid + 1, type=1, overlay=overlay)
+        ret_en, overlay = get_annotation(vpath, camid + 1, p_type=0)
+        ret_ex, overlay = get_annotation(vpath, camid + 1, p_type=1, overlay=overlay)
 
-        assert (len(ret_en) % 2 == 0 and len(ret_ex) % 2 == 0)
+        # assert (len(ret_en) % 2 == 0 and len(ret_ex) % 2 == 0)
 
         # Update entry and exit lists
-        for e in ret_en:
+        while ret_en:
             vect = ret_en.pop()
-            lvect = LabeledVector(vect, camid + 1, "entry")
+            lvect = LabeledVector(vect, camid + 1, p_type=0)
             en_list.append(lvect)
             en_count += 1
 
-        for e in ret_ex:
+        while ret_ex:
             vect = ret_ex.pop()
-            lvect = LabeledVector(vect, camid + 1, "exit")
+            lvect = LabeledVector(vect, camid + 1, p_type=1)
             ex_list.append(lvect)
             ex_count += 1
+
+        tmp = list()
+        tmp.extend(en_list)
+        tmp.extend(ex_list)
+        sv_LabelVect("./obj", "cam_vect.tmp", tmp, force=True)
 
     master_list.extend(en_list)
     master_list.extend(ex_list)
 
-    DataIO.save_obj(master_list, "./obj/", "cam_vect.pkl")
+    sv_LabelVect("./obj", "cam_vect.txt", master_list)
+    # DataIO.save_obj(master_list, "./obj/", "cam_vect.pkl")
 
 
 
-def get_annotation(vpath, camid, type, overlay=None):
+def get_annotation(vpath, camid, p_type, overlay=None):
     """
     Image annotation script
     :param vpath:
@@ -114,12 +127,15 @@ def get_annotation(vpath, camid, type, overlay=None):
     # Return structure
     arrlist = []
 
-    if type == "entry":
+    if p_type == 0:
         color = (255, 0, 255)   # Magenta
-    elif type == "exit":
-        color = (0, 255, 255)   # Cyan
+        p_str = "entry"
+    elif p_type == 1:
+        color = (0, 255, 255)   # Yellow
+        p_str = "exit"
     else:
-        color = (255, 255, 0)   # Yellow
+        color = (255, 255, 0)   # Cyan
+        raise Exception("Unknown point type!")
 
 
     cap = cv2.VideoCapture(vpath)
@@ -130,7 +146,7 @@ def get_annotation(vpath, camid, type, overlay=None):
 
     frame = cv2.resize(frame, None, fx=scale, fy=scale)
 
-    winname = "Camera {0}: Select {1} point pairs...".format(camid, type)
+    winname = "Camera {0}: Select {1} point pairs...".format(camid, p_str)
     if overlay is None:
         overlay = np.zeros(frame.shape, np.uint8)
     cv2.imshow(winname, frame)
@@ -171,6 +187,77 @@ def get_annotation(vpath, camid, type, overlay=None):
     return arrlist, overlay
 
 
+def show_markedimg(argv, vlist, writeimg=False, iterate=False):
+    """
+    Overlays all labeled vectors on the first frame of each camera's video
+    writeimg - dump labeled images to file
+    iterate - automatically go through all images
+    """
+    if argv:
+        argv = list(map(int, argv))
+    else:
+        argv = [1, 40]
+
+    en_list, ex_list = LabeledVector.split_vlist(vlist)
+    cam_min = argv[0] - 1
+    cam_max = argv[1] - 1
+
+    camid = cam_min
+    while(True):
+        vpath = FPATH[camid] + "vdo.avi"
+
+        cap = cv2.VideoCapture(vpath)
+        ret, frame = cap.read()   
+
+        en_cam_list = list(filter(lambda x: x.camid == camid+1, en_list))
+        ex_cam_list = list(filter(lambda x: x.camid == camid+1, ex_list))
+
+        for v in en_cam_list:
+            frame = cv2.arrowedLine(frame, v.vector[0], v.vector[1], (255, 0, 255), 
+                                    thickness=4, line_type=4, tipLength=0.10)
+            frame = cv2.putText(frame, "{0}-{1}".format(v.p_type, v.UID), org=v.center, 
+                                fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, thickness=2, color=(255, 0, 255))
+        for v in ex_cam_list:
+            frame = cv2.arrowedLine(frame, v.vector[0], v.vector[1], (0, 255, 255), 
+                                    thickness=4, line_type=4, tipLength=0.10)
+            frame = cv2.putText(frame, "{0}-{1}".format(v.p_type, v.UID), org=v.center, 
+                                fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, thickness=2, color=(0, 255, 255))
+
+        frame = cv2.resize(frame, None, fx=scale, fy=scale)
+        
+        winname = "Camera {0}: Annotated point pairs".format(camid)                            
+        cv2.imshow(winname, frame)
+        
+        if writeimg:
+            cv2.imwrite("./dump/c{0:03d}_labeled.jpg".format(camid+1), frame)
+
+        while not iterate:
+            kp = cv2.waitKey(1)
+            if kp == ord('b'): # Arrow Left
+                if camid == cam_min:
+                    camid = cam_max
+                else:
+                    camid -= 1
+                break
+            if kp == ord('n'): # Arrow Right
+                if camid == cam_max:
+                    camid = cam_min
+                else:
+                    camid += 1
+                break
+            if kp == 27 or kp == 113 or kp == 81:  # ESC, q, Q:
+                camid += 1
+                break  
+
+        cv2.destroyWindow(winname)
+
+        if iterate:
+            camid += 1
+            if camid > cam_max:
+                break
+        
+
+
 def on_click(event, x, y, flags, param):
     """
     Handles imshow window behavior
@@ -209,19 +296,23 @@ def on_click(event, x, y, flags, param):
         update = False
 
 
-def sv_LabelVect(path, name, vlist):
+def sv_LabelVect(path, name, vlist, force=False):
     fp = os.path.join(path, name)
     if os.path.isfile(fp):
-        if not DataIO.confirmOverride():
+        if not force and not DataIO.confirmOverride():
             print("Aborted!")
             return None
     with open(fp, 'w') as f:
         for lvect in vlist:
             f.write(lvect.__str__() + "\n")
-    print("Saved!")
+    if not force:
+        print("Saved to " + fp)
 
 
 def ld_LabelVect(path, name, vlist=None):
+    """
+    Read saved LabeledVectors and return a list of LabeledVectors
+    """
     fp = os.path.join(path, name)
     if not os.path.isfile(fp):
         return None
@@ -231,16 +322,21 @@ def ld_LabelVect(path, name, vlist=None):
 
     ret = []
     for line in rd:
-        data = [int(x) for x in line.split(' ')]
+        data = [float(x) for x in line.split(' ')]
+        data[0:7] = [int(x) for x in data[0:7]]
         vect = [(data[3], data[4]), (data[5], data[6])]
-        ret.append(LabeledVector(vector=vect, camid=data[1], type=data[2], UID=data[0]))
+        
+        # Without forced GPS
+        ret.append(LabeledVector(vector=vect, camid=data[1], p_type=data[2], UID=data[0]))
+
+        # # Forced GPS
+        # ret.append(LabeledVector(vector=vect, camid=data[1], p_type=data[2], UID=data[0], gps=data[7:9]))
     vlist = ret
     return vlist
 
 
 def hasUniqueUID(vlist):
-    en_list = list(filter(lambda x: x.type == 0, vlist))
-    ex_list = list(filter(lambda x: x.type == 1, vlist))
+    en_list, ex_list = LabeledVector.split_vlist(vlist)
     # Compute the element difference
     ldiff = lambda l: len(l) - len(set([v.UID for v in l]))
     ret = ldiff(en_list) or ldiff(ex_list)  # True if there are copies
@@ -253,17 +349,24 @@ class LabeledVector:
     """
     _UIN = [0, 0]
 
-    def __init__(self, vector, camid, type, UID=None):
+    def __init__(self, vector, camid, p_type, UID=None, gps=None):
         self.vector = vector
+        self.center = (int((vector[0][0] + vector[1][0])/2), int((vector[0][1] + vector[1][1])/2))
         self.camid = camid
-        self.type = type
+        self.p_type = p_type
+
+        if gps is None:
+            self.gps = Image2World.pt2world(camid, self.center, scale=scale)
+        else:
+            self.gps = gps
+
         if UID is None:
-            self.UID = self._UIN[type]
-            self._UIN[type] += 1
+            self.UID = self._UIN[p_type]
+            self._UIN[p_type] += 1
         else:
             self.UID = UID
-            if UID > self._UIN[type]:
-                self._UIN[type] = UID
+            if UID > self._UIN[p_type]:
+                self._UIN[p_type] = UID
 
 
     def __str__(self):
@@ -271,10 +374,11 @@ class LabeledVector:
         String override
         :return:
         """
-        ret = "{0} {1} {2} ".format(self.UID, self.camid, self.type)
-        ret += "{0:.0f} {1:.0f} {2:.0f} {3:.0f}".format(self.vector[0][0], self.vector[0][1],
+        ret = "{0} {1} {2} ".format(self.UID, self.camid, self.p_type)
+        ret += "{0:.0f} {1:.0f} {2:.0f} {3:.0f} ".format(self.vector[0][0], self.vector[0][1],
                                                     self.vector[1][0], self.vector[1][1])
-        return
+        ret += "{0} {1} {2}".format(*[a[0] for a in self.gps])
+        return ret
 
     def __cmp__(self, other):
         """
@@ -296,14 +400,13 @@ class LabeledVector:
         cls._UIN = init
 
     @classmethod
-    def resetUIN(cls, vlist, init=[0, 0]):
+    def resetUID(cls, vlist, init=[0, 0]):
         """
         Given a list of LabeledVectors, orders them by camid and vector
         Re-assigns UID for both types starting at init. Class variable _UIN
         is updated to the next value
         """
-        en_list = list(filter(lambda x: x.type == 0, vlist))
-        ex_list = list(filter(lambda x: x.type == 1, vlist))
+        en_list, ex_list = LabeledVector.split_vlist(vlist)
 
         en_list.sort()
         ex_list.sort()
@@ -315,7 +418,12 @@ class LabeledVector:
             ex_list[i].UID = i + init[1]
 
         cls._UIN = [init[0] + len(en_list), init[1] + len(ex_list)]
-        print()
+    
+    @classmethod
+    def split_vlist(cls, vlist):
+        en_list = list(filter(lambda x: x.p_type == 0, vlist))
+        ex_list = list(filter(lambda x: x.p_type == 1, vlist))
+        return en_list, ex_list
 
 
 if __name__ == "__main__":

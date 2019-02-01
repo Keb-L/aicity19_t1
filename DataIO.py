@@ -8,16 +8,55 @@ DataIO.py
 
 """
 import numpy as np
+import sys
+import cv2
+import os, pickle
+
+with open('./lib/list_cam_u.txt') as f:
+    fpath = f.read().splitlines()
+
+def main(argv):
+    print()
+    # sv_vidres('./lib/cam_res.txt')
+    # ld_vidres('./lib/cam_res.txt')
+
+
+def sv_vidres(filename):
+    vres = list()
+    for vpath in fpath:
+        vpath = vpath + 'vdo.avi'
+
+        cap = cv2.VideoCapture(vpath)
+
+        height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)  # Camera Frame Height
+        width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)  # Camera Frame Width
+
+        vres_str = "{:.0f} {:.0f}".format(height, width)
+        vres.append(vres_str)
+
+    with open(filename, 'w') as f:
+        f.writelines('\n'.join(vres))
+    print("Write complete")
+
+
+def ld_vidres(filename, st=None):
+    # Read file
+    with open(filename, 'r') as f:
+        vres = [int(x) for x in f.read().split()]
+    # Reshape into (H, W) pairs
+    vres = np.reshape(vres, (-1, 2))
+    print()
+
 
 def sv_dictfile(filename, st):
     """
     Saves 2-layer dictionary st into filename
-    
+
     st Structure
     > Camera
         > En/Ex
             > Points
-    
+
     (Camera/En) Points (terminator)
     (Camera/Ex) Points (terminator)
 
@@ -26,7 +65,7 @@ def sv_dictfile(filename, st):
     # Allowed types: dict
     if not isinstance(st, dict):
         return None
-    
+
     # Retrieve list of keys
     kClist = st.keys()
     with open(filename, 'w') as f:
@@ -41,7 +80,7 @@ def sv_dictfile(filename, st):
                             x = x
                         else:
                             x = -x
-                        string += str(int(x)) + " "    
+                        string += str(int(x)) + " "
             string += "1 -1\n"
             print(string)
             f.write(string)
@@ -63,8 +102,8 @@ def ld_camlink(filename, n_cam=40, n_layer=4, st=None):
     if(n_cam * n_layer != len(lines)):
         print("Size mismatch between ")
         return None
-    
-    # Format line list into data structure 
+
+    # Format line list into data structure
     ret = list()
     camid = 0
     layerid = 0
@@ -115,3 +154,35 @@ def sv_camlink(filename, st):
                 wdata = " ".join(str(x) for x in pl_flat) + "\n"    # to space-delimited string
                 f.write(wdata)
 
+
+# Save an object to the file system
+def save_obj(obj, path, name):
+    fp = os.path.join(path, name)
+    if os.path.isfile(fp):
+        if not confirmOverride():
+            print("Aborted")
+            return None
+    if not os.path.exists(path):
+        os.makedirs(path)
+    with open(fp, 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+        print('Saved file!')
+
+
+# Load an object from the file system
+def load_obj(path, name):
+    fp = os.path.join(path, name)
+    if os.path.isfile(fp):
+        with open(os.path.join(path, name), 'rb') as f:
+            print('Loaded file!')
+            return pickle.load(f)
+    return None
+
+def confirmOverride():
+    kp = 0
+    while(kp not in ('y', 'n')):
+        kp = input('Confirm override of entry (y/n):')
+    return kp == 'y'
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
