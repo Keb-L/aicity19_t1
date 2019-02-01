@@ -37,21 +37,21 @@ refPt = []
 scale = 0.5
 
 def main(argv):
-    # annotate_image(argv)
+    annotate_image(argv)
     # temp = DataIO.load_obj("./obj", "cam_vect.pkl")
 
     temp = ld_LabelVect("./obj", "cam_vect2.txt")
     # sv_LabelVect("./obj", "cam_vect2.txt", temp)
     # temp[5].UID = 5
-    print(temp[1])
+    # print(temp[1])
 
-    LabeledVector.resetUID(temp)
+    # LabeledVector.resetUID(temp)
 
-    show_markedimg(argv, temp)
+    # show_markedimg(argv, temp)
 
-    if not hasUniqueUID(temp):
-        raise Exception("LabeledVect UID is not unique!")
-    print()
+    # if not hasUniqueUID(temp):
+    #     raise Exception("LabeledVect UID is not unique!")
+    # print()
 
 
 
