@@ -93,7 +93,7 @@ def annotate_image(camrange, svpath="./obj/cam_vect.txt", ldpath=None):
         camrange = [1, 40]
 
     for camid in range(camrange[0] - 1, camrange[1]):
-        vpath = FPATH[camid] + "vdo.avi"
+        vpath = FPATH[camid]
 
         vinit = list(filter(lambda x: x.camid == camid+1, prevl))
         vinit_en, vinit_ex = LabeledVector.split_vlist(vinit)
@@ -156,11 +156,16 @@ def get_annotation(vpath, camid, p_type, overlay=None, vinit=None):
         raise Exception("Unknown point type!")
 
 
-    cap = cv2.VideoCapture(vpath)
+    cap = cv2.VideoCapture(vpath + "vdo.avi")
     ret, frame = cap.read()
     if not ret:
         print("An error has occurred in annotate_image!")
         return []
+    
+    roi_mask = cv2.imread(vpath + "roi.jpg", cv2.IMREAD_GRAYSCALE)
+    frame_roi = cv2.bitwise_and(frame, frame, mask=roi_mask)
+    frame_bg = cv2.bitwise_and(frame, frame, mask=cv2.bitwise_not(roi_mask))
+    frame = cv2.addWeighted(frame_roi, 1, frame_bg, 0.25, 0)
 
     frame = cv2.resize(frame, None, fx=scale, fy=scale)
 
@@ -231,9 +236,12 @@ def show_markedimg(argv, vlist, writeimg=False, iterate=False):
     camid = cam_min
     while(True):
         vpath = FPATH[camid] + "vdo.avi"
+        roipath = FPATH[camid] + "roi.jpg"
 
         cap = cv2.VideoCapture(vpath)
         ret, frame = cap.read()   
+
+        roi_mask = cv2.imread(roipath, cv2.IMREAD_GRAYSCALE)
 
         en_cam_list = list(filter(lambda x: x.camid == camid+1, en_list))
         ex_cam_list = list(filter(lambda x: x.camid == camid+1, ex_list))
@@ -248,6 +256,10 @@ def show_markedimg(argv, vlist, writeimg=False, iterate=False):
                                     thickness=4, line_type=4, tipLength=0.10)
             frame = cv2.putText(frame, "{0}-{1}".format(v.p_type, v.UID), org=v.center, 
                                 fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, thickness=2, color=(0, 255, 255))
+        # Apply ROI
+        frame_roi = cv2.bitwise_and(frame, frame, mask=roi_mask)
+        frame_bg = cv2.bitwise_and(frame, frame, mask=cv2.bitwise_not(roi_mask))
+        frame = cv2.addWeighted(frame_roi, 1, frame_bg, 0.25, 0)
 
         frame = cv2.resize(frame, None, fx=scale, fy=scale)
         
