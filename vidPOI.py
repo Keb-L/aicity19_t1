@@ -43,7 +43,7 @@ def main(argv):
         argv = list(map(int, argv))
 
     # This line for modifying the vector annotations
-    # annotate_image(argv, ldpath="./data/cam_vect_1_40_clean.txt")
+    # annotate_image([9, 9], ldpath="./data/cam_vect_1_40_clean.txt")
 
     # This line for loading the clean vector data
     lvect = ld_LabelVect("./data", "cam_vect_1_40_clean.txt")
@@ -82,6 +82,7 @@ def annotate_image(camrange, svpath="./obj/cam_vect.txt", ldpath=None):
     # Initialize previous vector data if specified
     if ldpath is not None:
         prevl = ld_LabelVect(*ntpath.split(ldpath))
+        sv_list.extend(prevl)
 
     svloc, svfile = ntpath.split(svpath)
     svfile = os.path.splitext(svfile)[0]
@@ -105,13 +106,15 @@ def annotate_image(camrange, svpath="./obj/cam_vect.txt", ldpath=None):
         # Update entry and exit lists
         while ret_en:
             vect = ret_en.pop()
-            lvect = LabeledVector(vect, camid + 1, p_type=0)
-            en_list.append(lvect)
+            if vect not in [v.vector for v in vinit_en]:
+                lvect = LabeledVector(vect, camid + 1, p_type=0)
+                en_list.append(lvect)
 
         while ret_ex:
             vect = ret_ex.pop()
-            lvect = LabeledVector(vect, camid + 1, p_type=1)
-            ex_list.append(lvect)
+            if vect not in [v.vector for v in vinit_ex]:
+                lvect = LabeledVector(vect, camid + 1, p_type=1)
+                ex_list.append(lvect)
 
         # Create tmp file for all vectors so far
         tmp = list()
