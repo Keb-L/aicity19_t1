@@ -25,6 +25,7 @@ import DataIO
 import os
 import Image2World
 from functools import total_ordering
+import ntpath
 
 with open('./lib/list_cam_u.txt') as f:
     FPATH = f.read().splitlines()
@@ -37,14 +38,28 @@ refPt = []
 scale = 0.5
 
 def main(argv):
-    annotate_image(argv)
+    if argv:
+        argv = list(map(int, argv))
+    annotate_image(argv, ldpath="./data/cam_vect_1_20.txt")
+    # annotate_image(argv)
     # temp = DataIO.load_obj("./obj", "cam_vect.pkl")
 
-    temp = ld_LabelVect("./obj", "cam_vect2.txt")
+    # temp1 = ld_LabelVect(*["./data", "cam_vect_34_40.tmp"])
+    # temp2 = ld_LabelVect("./data", "cam_vect_21_33_upd.txt")
+
+    # temp2.extend(temp1)
+    # temp3 = LabeledVector.resetUID(temp2)
+
+    # sv_LabelVect("./data", "cam_vect_21_40.txt", temp3)
+    # show_markedimg([34, 40], temp)
     # sv_LabelVect("./obj", "cam_vect2.txt", temp)
     # temp[5].UID = 5
-    # print(temp[1])
 
+
+    # temp = ld_LabelVect("./data/", "cam_vect_21_33_upd.txt", forceGPS=True)
+    # show_markedimg(argv, temp, writeimg=True, iterate=True)
+    # sv_LabelVect("./data/", "cam_vect_21_33_upd.txt", temp)
+    print()
     # LabeledVector.resetUID(temp)
 
     # show_markedimg(argv, temp)
@@ -55,32 +70,33 @@ def main(argv):
 
 
 
-def annotate_image(argv):
+def annotate_image(camrange, svpath="./obj/cam_vect.txt", ldpath=None):
     """
 
     :param argv:
     :return:
     """
-    en_list = []
-    ex_list = []
+    en_list = ex_list = []
+    sv_list = prevl = []
 
-    en_count = 0
-    ex_count = 0
+    if ldpath is not None:
+        prevl = ld_LabelVect(*ntpath.split(ldpath))
 
-    master_list = []
+    svloc, svfile = ntpath.split(svpath)
+    svfile = os.path.splitext(svfile)[0]
 
-    if argv:
-        argv = list(map(int, argv))
-    else:
-        argv = [1, 40]
+    if not camrange:
+        camrange = [1, 40]
 
-    for camid in range(argv[0] - 1, argv[1]):
+    for camid in range(camrange[0] - 1, camrange[1]):
         vpath = FPATH[camid] + "vdo.avi"
 
+        vinit = list(filter(lambda x: x.camid == camid+1, prevl))
+        vinit_en, vinit_ex = LabeledVector.split_vlist(vinit)
         overlay = []
         # Type 0 = Enter, Type 1 = Exit
-        ret_en, overlay = get_annotation(vpath, camid + 1, p_type=0)
-        ret_ex, overlay = get_annotation(vpath, camid + 1, p_type=1, overlay=overlay)
+        ret_en, overlay = get_annotation(vpath, camid + 1, p_type=0, vinit=vinit_en)
+        ret_ex, overlay = get_annotation(vpath, camid + 1, p_type=1, overlay=overlay, vinit=vinit_ex)
 
         # assert (len(ret_en) % 2 == 0 and len(ret_ex) % 2 == 0)
 
@@ -89,32 +105,30 @@ def annotate_image(argv):
             vect = ret_en.pop()
             lvect = LabeledVector(vect, camid + 1, p_type=0)
             en_list.append(lvect)
-            en_count += 1
 
         while ret_ex:
             vect = ret_ex.pop()
             lvect = LabeledVector(vect, camid + 1, p_type=1)
             ex_list.append(lvect)
-            ex_count += 1
 
         tmp = list()
         tmp.extend(en_list)
         tmp.extend(ex_list)
-        sv_LabelVect("./obj", "cam_vect.tmp", tmp, force=True)
+        sv_LabelVect(svloc, svfile + ".tmp", tmp, force=True)
 
-    master_list.extend(en_list)
-    master_list.extend(ex_list)
+    sv_list.extend(en_list)
+    sv_list.extend(ex_list)
 
-    sv_LabelVect("./obj", "cam_vect.txt", master_list)
+    sv_LabelVect(svloc, svfile + ".txt", sv_list)
     # DataIO.save_obj(master_list, "./obj/", "cam_vect.pkl")
 
 
 
-def get_annotation(vpath, camid, p_type, overlay=None):
+def get_annotation(vpath, camid, p_type, overlay=None, vinit=None):
     """
     Image annotation script
     :param vpath:
-    :param camid:
+    :param camid: true cam id
     :param type:
     :param overlay:
     :return:
@@ -149,8 +163,16 @@ def get_annotation(vpath, camid, p_type, overlay=None):
     winname = "Camera {0}: Select {1} point pairs...".format(camid, p_str)
     if overlay is None:
         overlay = np.zeros(frame.shape, np.uint8)
+
     cv2.imshow(winname, frame)
     cv2.setMouseCallback(winname, on_click, [winname, frame.copy(), overlay])
+
+    for lvect in vinit:
+        vect = [(int(x*scale), int(y*scale)) for (x, y) in lvect.vector]
+        arrlist.append(vect)
+        cv2.arrowedLine(overlay, *vect, color, thickness=2, line_type=4, tipLength=0.10)
+
+    update = True
 
     while (True):
         kp = cv2.waitKey(1)
@@ -165,7 +187,7 @@ def get_annotation(vpath, camid, p_type, overlay=None):
                 cv2.circle(overlay, endPt, 5, (0, 0, 0), -1)
 
                 # Draw an arrow
-                cv2.arrowedLine(overlay, srtPt, endPt, color, thickness=2, line_type=4, tipLength=0.05)
+                cv2.arrowedLine(overlay, srtPt, endPt, color, thickness=2, line_type=4, tipLength=0.10)
 
                 arrlist.append([srtPt, endPt])
                 update = True
@@ -225,7 +247,7 @@ def show_markedimg(argv, vlist, writeimg=False, iterate=False):
 
         frame = cv2.resize(frame, None, fx=scale, fy=scale)
         
-        winname = "Camera {0}: Annotated point pairs".format(camid)                            
+        winname = "Camera {0}: Annotated point pairs".format(camid+1)                            
         cv2.imshow(winname, frame)
         
         if writeimg:
@@ -299,7 +321,7 @@ def on_click(event, x, y, flags, param):
 def sv_LabelVect(path, name, vlist, force=False):
     fp = os.path.join(path, name)
     if os.path.isfile(fp):
-        if not force and not DataIO.confirmOverride():
+        if not force and not DataIO.confirmOverride(fp):
             print("Aborted!")
             return None
     with open(fp, 'w') as f:
@@ -309,7 +331,7 @@ def sv_LabelVect(path, name, vlist, force=False):
         print("Saved to " + fp)
 
 
-def ld_LabelVect(path, name, vlist=None):
+def ld_LabelVect(path, name, forceGPS=False, vlist=None):
     """
     Read saved LabeledVectors and return a list of LabeledVectors
     """
@@ -327,10 +349,11 @@ def ld_LabelVect(path, name, vlist=None):
         vect = [(data[3], data[4]), (data[5], data[6])]
         
         # Without forced GPS
-        ret.append(LabeledVector(vector=vect, camid=data[1], p_type=data[2], UID=data[0]))
-
+        if not forceGPS:
+            ret.append(LabeledVector(vector=vect, camid=data[1], p_type=data[2], UID=data[0]))
+        else:
         # # Forced GPS
-        # ret.append(LabeledVector(vector=vect, camid=data[1], p_type=data[2], UID=data[0], gps=data[7:9]))
+            ret.append(LabeledVector(vector=vect, camid=data[1], p_type=data[2], UID=data[0], gps=data[7:9]))
     vlist = ret
     return vlist
 
@@ -350,13 +373,16 @@ class LabeledVector:
     _UIN = [0, 0]
 
     def __init__(self, vector, camid, p_type, UID=None, gps=None):
+        """
+        camid is the true camera id number
+        """
         self.vector = vector
         self.center = (int((vector[0][0] + vector[1][0])/2), int((vector[0][1] + vector[1][1])/2))
         self.camid = camid
         self.p_type = p_type
 
         if gps is None:
-            self.gps = Image2World.pt2world(camid, self.center, scale=scale)
+            self.gps = Image2World.pt2world(camid-1, self.center, scale=scale)
         else:
             self.gps = gps
 
@@ -377,7 +403,7 @@ class LabeledVector:
         ret = "{0} {1} {2} ".format(self.UID, self.camid, self.p_type)
         ret += "{0:.0f} {1:.0f} {2:.0f} {3:.0f} ".format(self.vector[0][0], self.vector[0][1],
                                                     self.vector[1][0], self.vector[1][1])
-        ret += "{0} {1} {2}".format(*[a[0] for a in self.gps])
+        ret += "{0} {1} {2}".format(*self.gps)
         return ret
 
     def __cmp__(self, other):
@@ -418,6 +444,9 @@ class LabeledVector:
             ex_list[i].UID = i + init[1]
 
         cls._UIN = [init[0] + len(en_list), init[1] + len(ex_list)]
+        ret = en_list
+        ret.extend(ex_list)
+        return ret
     
     @classmethod
     def split_vlist(cls, vlist):
