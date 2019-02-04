@@ -40,18 +40,22 @@ scale = 0.5
 def main(argv):
     if argv:
         argv = list(map(int, argv))
-    annotate_image(argv, ldpath="./data/cam_vect_1_20.txt")
+    # annotate_image(argv, ldpath="./obj/cam_vect_1_20_temp.temp")
     # annotate_image(argv)
     # temp = DataIO.load_obj("./obj", "cam_vect.pkl")
 
-    # temp1 = ld_LabelVect(*["./data", "cam_vect_34_40.tmp"])
+    temp1 = ld_LabelVect("./data", "cam_vect_1_40_clean.txt")
+    # temp2 = ld_LabelVect(*["./data", "cam_vect_1_20.tmp"])
+    # sv_LabelVect("./data", "cam_vect_1_40_clean.txt", temp1)
+    show_markedimg([1, 40], temp1, writeimg=True, iterate=True)
+    # print()
     # temp2 = ld_LabelVect("./data", "cam_vect_21_33_upd.txt")
 
     # temp2.extend(temp1)
     # temp3 = LabeledVector.resetUID(temp2)
 
     # sv_LabelVect("./data", "cam_vect_21_40.txt", temp3)
-    # show_markedimg([34, 40], temp)
+    #
     # sv_LabelVect("./obj", "cam_vect2.txt", temp)
     # temp[5].UID = 5
 
@@ -319,6 +323,16 @@ def on_click(event, x, y, flags, param):
 
 
 def sv_LabelVect(path, name, vlist, force=False):
+    """
+    Saves vector list to file system.
+    Applies a unique operation on the vlist based on camid, p_type and vector
+    :param path:
+    :param name:
+    :param vlist:
+    :param force:
+    :return:
+    """
+    vlist = uniqueVectors(vlist)
     fp = os.path.join(path, name)
     if os.path.isfile(fp):
         if not force and not DataIO.confirmOverride(fp):
@@ -354,6 +368,7 @@ def ld_LabelVect(path, name, forceGPS=False, vlist=None):
         else:
         # # Forced GPS
             ret.append(LabeledVector(vector=vect, camid=data[1], p_type=data[2], UID=data[0], gps=data[7:9]))
+    ret = uniqueVectors(ret)
     vlist = ret
     return vlist
 
@@ -364,6 +379,18 @@ def hasUniqueUID(vlist):
     ldiff = lambda l: len(l) - len(set([v.UID for v in l]))
     ret = ldiff(en_list) or ldiff(ex_list)  # True if there are copies
     return not ret
+
+
+def uniqueVectors(vlist):
+    vtuple = [(v.camid, v.p_type, v.vector[0], v.vector[1]) for v in vlist]
+    vunique = list(set(vtuple))
+    uindex = [vtuple.index(a) for a in vunique]
+
+    if len(uindex) < len(vlist):
+        print("WARNING: Unique operation has found duplicate vectors.\n\t{0} unique of {1} vectors".format(len(uindex), len(vlist)))
+    uindex.sort()
+    ret = [vlist[a] for a in uindex]
+    return ret
 
 @total_ordering
 class LabeledVector:
