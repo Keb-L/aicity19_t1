@@ -26,6 +26,7 @@ import os
 import Image2World
 from functools import total_ordering
 import ntpath
+import csv
 
 with open('./lib/list_cam_u.txt') as f:
     FPATH = f.read().splitlines()
@@ -40,69 +41,66 @@ scale = 0.5
 def main(argv):
     if argv:
         argv = list(map(int, argv))
-    # annotate_image(argv, ldpath="./obj/cam_vect_1_20_temp.temp")
-    # annotate_image(argv)
-    # temp = DataIO.load_obj("./obj", "cam_vect.pkl")
 
-    temp1 = ld_LabelVect("./data", "cam_vect_1_40_clean.txt")
-    # temp2 = ld_LabelVect(*["./data", "cam_vect_1_20.tmp"])
-    # sv_LabelVect("./data", "cam_vect_1_40_clean.txt", temp1)
-    show_markedimg([1, 40], temp1, writeimg=True, iterate=True)
-    # print()
-    # temp2 = ld_LabelVect("./data", "cam_vect_21_33_upd.txt")
+    # This line for modifying the vector annotations
+    # annotate_image(argv, ldpath="./data/cam_vect_1_40_clean.txt")
 
-    # temp2.extend(temp1)
-    # temp3 = LabeledVector.resetUID(temp2)
+    # This line for loading the clean vector data
+    lvect = ld_LabelVect("./data", "cam_vect_1_40_clean.txt")
 
-    # sv_LabelVect("./data", "cam_vect_21_40.txt", temp3)
-    #
-    # sv_LabelVect("./obj", "cam_vect2.txt", temp)
-    # temp[5].UID = 5
-
-
-    # temp = ld_LabelVect("./data/", "cam_vect_21_33_upd.txt", forceGPS=True)
-    # show_markedimg(argv, temp, writeimg=True, iterate=True)
-    # sv_LabelVect("./data/", "cam_vect_21_33_upd.txt", temp)
-    print()
-    # LabeledVector.resetUID(temp)
-
-    # show_markedimg(argv, temp)
-
+    # This line for checking/ensuring unique UID
     # if not hasUniqueUID(temp):
     #     raise Exception("LabeledVect UID is not unique!")
-    # print()
+
+    # This line for viewing annotated images
+    # show_markedimg(argv, temp1, writeimg=False, iterate=False)
+
+    # This line for dumping annotated images
+    # show_markedimg([1, 40], temp1, writeimg=True, iterate=True)
+
+    # This line for viewing the video with vector annotations
+    show_markedvid(argv, lvect, fps=25)
+
+    # This line for resetting vector UID
+    # temp3 = LabeledVector.resetUID(temp2)
+
+    # This line for saving vector list to a file
+    # sv_LabelVect("./data", "cam_vect_21_40.txt", temp3)
 
 
 
 def annotate_image(camrange, svpath="./obj/cam_vect.txt", ldpath=None):
     """
+    Top-level function for image annotation.
 
-    :param argv:
-    :return:
+    User defines a camera range and save path.
+    Can define a ldpath to load existing vector data and make modifications
     """
     en_list = ex_list = []
     sv_list = prevl = []
 
+    # Initialize previous vector data if specified
     if ldpath is not None:
         prevl = ld_LabelVect(*ntpath.split(ldpath))
 
     svloc, svfile = ntpath.split(svpath)
     svfile = os.path.splitext(svfile)[0]
 
+    # Default range 1 to 40
     if not camrange:
         camrange = [1, 40]
 
+    # Main loop
     for camid in range(camrange[0] - 1, camrange[1]):
         vpath = FPATH[camid]
 
+        # Retrieves relevant vectors for current cam id
         vinit = list(filter(lambda x: x.camid == camid+1, prevl))
         vinit_en, vinit_ex = LabeledVector.split_vlist(vinit)
-        overlay = []
+
         # Type 0 = Enter, Type 1 = Exit
         ret_en, overlay = get_annotation(vpath, camid + 1, p_type=0, vinit=vinit_en)
         ret_ex, overlay = get_annotation(vpath, camid + 1, p_type=1, overlay=overlay, vinit=vinit_ex)
-
-        # assert (len(ret_en) % 2 == 0 and len(ret_ex) % 2 == 0)
 
         # Update entry and exit lists
         while ret_en:
@@ -115,6 +113,7 @@ def annotate_image(camrange, svpath="./obj/cam_vect.txt", ldpath=None):
             lvect = LabeledVector(vect, camid + 1, p_type=1)
             ex_list.append(lvect)
 
+        # Create tmp file for all vectors so far
         tmp = list()
         tmp.extend(en_list)
         tmp.extend(ex_list)
@@ -123,28 +122,30 @@ def annotate_image(camrange, svpath="./obj/cam_vect.txt", ldpath=None):
     sv_list.extend(en_list)
     sv_list.extend(ex_list)
 
+    # Save output
     sv_LabelVect(svloc, svfile + ".txt", sv_list)
-    # DataIO.save_obj(master_list, "./obj/", "cam_vect.pkl")
+
 
 
 
 def get_annotation(vpath, camid, p_type, overlay=None, vinit=None):
     """
     Image annotation script
-    :param vpath:
-    :param camid: true cam id
-    :param type:
-    :param overlay:
+    :param vpath: camera folder path
+    :param camid: camera id (true value)
+    :param p_type: point type (0 entrance, 1 exit)
+    :param overlay: overlay image
     :return:
     """
     global isactive, refPt, update, scale
-    isactive = False    # Reset to initial
-    refPt = []          # Reset to initial
-    update = True
+    isactive = False    # Reset to initial, FSM for start/end point
+    refPt = []          # Reset to initial, Stack of keypoints
+    update = True       # Reset to initial, Force a overlay redraw
 
     # Return structure
     arrlist = []
 
+    # Specify annotation color based on type
     if p_type == 0:
         color = (255, 0, 255)   # Magenta
         p_str = "entry"
@@ -155,13 +156,13 @@ def get_annotation(vpath, camid, p_type, overlay=None, vinit=None):
         color = (255, 255, 0)   # Cyan
         raise Exception("Unknown point type!")
 
-
     cap = cv2.VideoCapture(vpath + "vdo.avi")
     ret, frame = cap.read()
     if not ret:
         print("An error has occurred in annotate_image!")
         return []
-    
+
+    # Apply ROI mask, reduce magnitude of areas out of ROI by 75%
     roi_mask = cv2.imread(vpath + "roi.jpg", cv2.IMREAD_GRAYSCALE)
     frame_roi = cv2.bitwise_and(frame, frame, mask=roi_mask)
     frame_bg = cv2.bitwise_and(frame, frame, mask=cv2.bitwise_not(roi_mask))
@@ -173,9 +174,11 @@ def get_annotation(vpath, camid, p_type, overlay=None, vinit=None):
     if overlay is None:
         overlay = np.zeros(frame.shape, np.uint8)
 
+    # Show image and set mouse event function
     cv2.imshow(winname, frame)
     cv2.setMouseCallback(winname, on_click, [winname, frame.copy(), overlay])
 
+    # Draw initial vectors
     for lvect in vinit:
         vect = [(int(x*scale), int(y*scale)) for (x, y) in lvect.vector]
         arrlist.append(vect)
@@ -183,10 +186,10 @@ def get_annotation(vpath, camid, p_type, overlay=None, vinit=None):
 
     update = True
 
-    while (True):
-        kp = cv2.waitKey(1)
+    while True:
+        kp = cv2.waitKey(1) # Poll every 1 ms
         if kp == 13:  # Enter key pressed
-            # Verify length
+            # Verify length, if even # of keypoint, pop 2 keypoints off and form a vector
             if refPt and len(refPt) % 2 == 0:  # is even
                 endPt = refPt.pop()
                 srtPt = refPt.pop()
@@ -201,6 +204,7 @@ def get_annotation(vpath, camid, p_type, overlay=None, vinit=None):
                 arrlist.append([srtPt, endPt])
                 update = True
         elif kp == 8:   # Backspace
+            # If vector list is not empty, pop a vector
             if arrlist:
                 vect = arrlist.pop()    # Remove last drawn vector
                 endPt = vect.pop()      # Retrieve end point
@@ -213,6 +217,7 @@ def get_annotation(vpath, camid, p_type, overlay=None, vinit=None):
     cap.release()
     cv2.destroyWindow(winname)
 
+    # Rescale vectors to true coordinates
     for i in range(0, len(arrlist)):
         arrlist[i] = [tuple(c/scale for c in pt) for pt in arrlist[i]]
     return arrlist, overlay
@@ -221,6 +226,7 @@ def get_annotation(vpath, camid, p_type, overlay=None, vinit=None):
 def show_markedimg(argv, vlist, writeimg=False, iterate=False):
     """
     Overlays all labeled vectors on the first frame of each camera's video
+    vlist - vector list
     writeimg - dump labeled images to file
     iterate - automatically go through all images
     """
@@ -229,6 +235,7 @@ def show_markedimg(argv, vlist, writeimg=False, iterate=False):
     else:
         argv = [1, 40]
 
+    # Retrieve sublists
     en_list, ex_list = LabeledVector.split_vlist(vlist)
     cam_min = argv[0] - 1
     cam_max = argv[1] - 1
@@ -238,14 +245,17 @@ def show_markedimg(argv, vlist, writeimg=False, iterate=False):
         vpath = FPATH[camid] + "vdo.avi"
         roipath = FPATH[camid] + "roi.jpg"
 
-        cap = cv2.VideoCapture(vpath)
-        ret, frame = cap.read()   
-
         roi_mask = cv2.imread(roipath, cv2.IMREAD_GRAYSCALE)
 
+        cap = cv2.VideoCapture(vpath)
+        ret, frame = cap.read()
+        if not ret:
+            break
+        # Retrieve relevant vectors
         en_cam_list = list(filter(lambda x: x.camid == camid+1, en_list))
         ex_cam_list = list(filter(lambda x: x.camid == camid+1, ex_list))
 
+        # Draw vectors on the image
         for v in en_cam_list:
             frame = cv2.arrowedLine(frame, v.vector[0], v.vector[1], (255, 0, 255), 
                                     thickness=4, line_type=4, tipLength=0.10)
@@ -265,19 +275,23 @@ def show_markedimg(argv, vlist, writeimg=False, iterate=False):
         
         winname = "Camera {0}: Annotated point pairs".format(camid+1)                            
         cv2.imshow(winname, frame)
-        
+
+        # Image dump routine
         if writeimg:
             cv2.imwrite("./dump/c{0:03d}_labeled.jpg".format(camid+1), frame)
 
+        # Normal operation
+        # B - go back a camera
+        # N - go to next camera
         while not iterate:
             kp = cv2.waitKey(1)
-            if kp == ord('b'): # Arrow Left
+            if kp == ord('b'):
                 if camid == cam_min:
                     camid = cam_max
                 else:
                     camid -= 1
                 break
-            if kp == ord('n'): # Arrow Right
+            if kp == ord('n'):
                 if camid == cam_max:
                     camid = cam_min
                 else:
@@ -289,11 +303,133 @@ def show_markedimg(argv, vlist, writeimg=False, iterate=False):
 
         cv2.destroyWindow(winname)
 
+        # Automatic image dump
         if iterate:
             camid += 1
             if camid > cam_max:
                 break
-        
+
+
+def show_markedvid(argv, vlist, fps=40):
+    """
+    Overlays all labeled vectors on the first frame of each camera's video
+    writeimg - dump labeled images to file
+    iterate - automatically go through all images
+    """
+    if argv:
+        argv = list(map(int, argv))
+    else:
+        argv = [1, 40]
+
+    en_list, ex_list = LabeledVector.split_vlist(vlist)
+    cam_min = argv[0] - 1
+    cam_max = argv[1] - 1
+
+    camid = cam_min
+    while True:
+        vpath = FPATH[camid] + "vdo.avi"
+        roipath = FPATH[camid] + "roi.jpg"
+        gtpath = FPATH[camid] + 'gt/gt.txt'
+
+        roi_mask = cv2.imread(roipath, cv2.IMREAD_GRAYSCALE)
+
+        # # Ground Truth
+        # csv_file = open(gtpath, mode='r')
+        # gt = csv.reader(csv_file)
+        # bb = list(map(int, gt.__next__()))
+
+        cap = cv2.VideoCapture(vpath)
+
+        en_cam_list = list(filter(lambda x: x.camid == camid + 1, en_list))
+        ex_cam_list = list(filter(lambda x: x.camid == camid + 1, ex_list))
+
+        vH, vW = [int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)), int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))]
+        overlay = np.zeros((vH, vW, 3), dtype=np.uint8)
+        for v in en_cam_list:
+            overlay = cv2.arrowedLine(overlay, v.vector[0], v.vector[1], (255, 0, 255),
+                                    thickness=4, line_type=4, tipLength=0.10)
+            overlay = cv2.putText(overlay, "{0}-{1}".format(v.p_type, v.UID), org=v.center,
+                                fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1.5, thickness=2, color=(255, 0, 255))
+        for v in ex_cam_list:
+            overlay = cv2.arrowedLine(overlay, v.vector[0], v.vector[1], (0, 255, 255),
+                                    thickness=4, line_type=4, tipLength=0.10)
+            overlay = cv2.putText(overlay, "{0}-{1}".format(v.p_type, v.UID), org=v.center,
+                                    fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1.5, thickness=2, color=(0, 255, 255))
+
+        overlay = cv2.resize(overlay, None, fx=scale, fy=scale)
+        roi_mask = cv2.resize(roi_mask, None, fx=scale, fy=scale)
+        ret, mask = cv2.threshold(cv2.cvtColor(overlay, cv2.COLOR_BGR2GRAY), 1, 255, cv2.THRESH_BINARY)
+        fcount = 0
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            frame = cv2.resize(frame, None, fx=scale, fy=scale)
+            fcount += 1
+
+            # Apply Vectors
+            overlay = cv2.bitwise_and(overlay, overlay, mask=mask)
+            frame = cv2.bitwise_and(frame, frame, mask=cv2.bitwise_not(mask))
+            frame = cv2.add(frame, overlay)
+
+            # Apply ROI
+            frame_roi = cv2.bitwise_and(frame, frame, mask=roi_mask)
+            frame_bg = cv2.bitwise_and(frame, frame, mask=cv2.bitwise_not(roi_mask))
+            frame = cv2.addWeighted(frame_roi, 1, frame_bg, 0.25, 0)
+
+            # Overlay Frame
+            cv2.putText(frame, str(fcount), org=(10, 25),
+                        fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, thickness=1,
+                        color=(0, 255, 0))
+
+            # Labeling ground truth
+            # while (int(bb[0]) <= fcount):
+            #     id = bb[1]
+            #     tlpt = (bb[2], bb[3])  # Top-left pt
+            #     brpt = (bb[2] + bb[4], bb[3] + bb[5])  # Bottom-right pt
+            #
+            #     cv2.putText(frame, str(id), org=tlpt,
+            #                 fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, thickness=2,
+            #                 color=(255, 0, 0), bottomLeftOrigin=False)
+            #
+            #     cv2.rectangle(frame, pt1=tlpt, pt2=brpt, color=(255, 0, 0), thickness=2)
+            #     # cv2.circle(frame, (int(bb[2] + bb[4] / 2), int(bb[3] + bb[5] / 2)), 7, color=(255, 0, 255),
+            #     #            thickness=-1)
+            #     bb = list(map(int, gt.__next__()))
+
+            winname = "Camera {0}: Annotated point pairs".format(camid + 1)
+            cv2.imshow(winname, frame)
+
+            kp = cv2.waitKey(int(1000/fps))
+
+            if kp == ord('p'):  # Pause
+                while True:
+                    kp = cv2.waitKey(0)
+                    if kp == ord('p'):
+                        break
+
+            if kp == ord('b'):  # Previous Camera
+                if camid == cam_min:
+                    camid = cam_max
+                else:
+                    camid -= 1
+                cv2.destroyWindow(winname)
+                break
+            if kp == ord('n'):  # Next Camera
+                if camid == cam_max:
+                    camid = cam_min
+                else:
+                    camid += 1
+                cv2.destroyWindow(winname)
+                break
+            if kp == 27 or kp == 113 or kp == 81:  # ESC, q, Q:
+                camid += 1
+                break
+        cap.release()
+        if kp == 27 or kp == 113 or kp == 81:
+            break
+    cv2.destroyWindow(winname)
+
 
 
 def on_click(event, x, y, flags, param):

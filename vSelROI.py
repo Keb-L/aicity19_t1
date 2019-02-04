@@ -42,6 +42,7 @@ import os
 import numpy as np
 import cv2
 import pickle
+import DataIO
 
 # Global declarations
 VID_NAME = 'vdo.avi'
@@ -117,6 +118,7 @@ def main(argv):
             hmap[cam_id] = subhmap
 
         save_obj(hmap, DICTNAME)
+        DataIO.sv_dictfile("obj/track1_en_ex.txt", hmap)
     #end for loop
     print('Done')
     print()

@@ -45,7 +45,8 @@ def ld_vidres(filename, st=None):
         vres = [int(x) for x in f.read().split()]
     # Reshape into (H, W) pairs
     vres = np.reshape(vres, (-1, 2))
-    print()
+    st = vres
+    return vres
 
 
 def sv_dictfile(filename, st):
@@ -159,7 +160,7 @@ def sv_camlink(filename, st):
 def save_obj(obj, path, name):
     fp = os.path.join(path, name)
     if os.path.isfile(fp):
-        if not confirmOverride():
+        if not confirmOverride(fp):
             print("Aborted")
             return None
     if not os.path.exists(path):
@@ -178,10 +179,10 @@ def load_obj(path, name):
             return pickle.load(f)
     return None
 
-def confirmOverride():
+def confirmOverride(fp=""):
     kp = 0
     while(kp not in ('y', 'n')):
-        kp = input('Confirm override of entry (y/n):')
+        kp = input("Confirm override of"+fp+"(y/n):")
     return kp == 'y'
 
 if __name__ == "__main__":

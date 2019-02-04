@@ -2,7 +2,7 @@ import cv2 as cv2
 import csv
 import sys
 from time import sleep
-
+import vidPOI as vp
 
 # Global declarations
 VID_NAME = 'vdo.avi'
@@ -10,6 +10,7 @@ VID_NAME = 'vdo.avi'
 with open('../list_cam.txt') as f:
     VIDPATH = f.read().splitlines()
 scale = 0.5
+vidwrite = False
 
 def main(argv):
     if len(argv) != 1:
@@ -32,10 +33,11 @@ def main(argv):
     # Bounding Region
     bb = list(map(int, gt.__next__()))
 
-    # frame_width = int(cap.get(3) * scale)
-    # frame_height = int(cap.get(4) * scale)
-    # fourcc = cv2.VideoWriter_fourcc('F','M','P','4')
-    # vwrite = cv2.VideoWriter('vdo16_overlay.avi', fourcc, 10, (frame_width, frame_height))
+    if vidwrite:
+        frame_width = int(cap.get(3) * scale)
+        frame_height = int(cap.get(4) * scale)
+        fourcc = cv2.VideoWriter_fourcc('F','M','P','4')
+        vwrite = cv2.VideoWriter('vdo'+str(cam_id)+'_overlay.avi', fourcc, 30, (frame_width, frame_height))
 
     fcount = 1
     while (True):
@@ -60,13 +62,17 @@ def main(argv):
                     color=(255, 0, 255))
 
             cv2.rectangle(frame, pt1=tlpt, pt2=brpt, color=(255, 0, 255), thickness=2)
+            cv2.circle(frame, (int(bb[2]+bb[4]/2), int(bb[3]+bb[5]/2)), 7, color=(255, 0, 255), thickness=-1)
             bb = list(map(int, gt.__next__()))
+
+
 
         frame = cv2.resize(frame, None, fx = scale, fy = scale)
         # Display the resulting frame
         cv2.imshow('frame', frame)
 
-        vwrite.write(frame)
+        if vidwrite:
+            vwrite.write(frame)
 
         kp = cv2.waitKey(1)
         if kp & 0xFF == ord('q'):
