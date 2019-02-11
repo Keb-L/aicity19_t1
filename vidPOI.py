@@ -4,13 +4,13 @@ AI City 2019
 Kelvin Lin
 
 vidPOI.py
-Video Point-of-Interest Selector
+Video Point-of-Interest Selectornb
 
 This program is designed to draw entry/exit vectors on the first frame of a given video.
 
 Controls:
 LMB - draw a point
-RMB - Erase a point
+RMB - Erase a pointnnnnnnnnnn
 Enter - Convert most recent point pair into a vector
 Backspace - Erase a vector
 ESC/q/Q - quit
@@ -542,6 +542,41 @@ def uniqueVectors(vlist):
     uindex.sort()
     ret = [vlist[a] for a in uindex]
     return ret
+
+
+# modify function here
+def modify_vector(vec_id, camid, p_type):
+    vector_list = ld_LabelVect("./data", "cam_vect_1_40_clean.txt")
+    location = -1
+    vector = []
+    vpath = FPATH[camid]
+    for i in range(len(vector_list)):
+        vector = vector_list[i]
+        if vector[0] == vec_id and vector[2] == p_type:
+            location = i
+
+    if p_type == 0:
+        color = (255, 0, 255)  # Magenta
+        p_str = "entry"
+    elif p_type == 1:
+        color = (0, 255, 255)  # Yellow
+            p_str = "exit"
+    else:
+        color = (255, 255, 0)  # Cyan
+        raise Exception("Unknown point type!")
+
+    cap = cv2.VideoCapture(vpath + "vdo.avi")
+    frame = cap.read()
+    roi_mask = cv2.imread(vpath + "roi.jpg", cv2.IMREAD_GRAYSCALE)
+    frame_roi = cv2.bitwise_and(frame, frame, mask=roi_mask)
+    frame_bg = cv2.bitwise_and(frame, frame, mask=cv2.bitwise_not(roi_mask))
+    frame = cv2.addWeighted(frame_roi, 1, frame_bg, 0.25, 0)
+
+    frame = cv2.resize(frame, None, fx=scale, fy=scale)
+    window_name = "Camera {0}: Select {1} point pairs...".format(camid, p_str)
+
+    cv2.imshow(winname, frame)
+
 
 @total_ordering
 class LabeledVector:
