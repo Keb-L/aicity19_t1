@@ -43,7 +43,7 @@ def main(argv):
         argv = list(map(int, argv))
 
     # This line for modifying the vector annotations
-    # annotate_image([9, 9], ldpath="./data/cam_vect_1_40_clean.txt")
+    # annotate_image([1, 40], ldpath="./data/cam_vect_1_40_Feb3.txt", svpath="./data/cam_vect_1_40_Feb4.txt")
 
     # This line for loading the clean vector data
     lvect = ld_LabelVect("./data", "cam_vect_1_40_clean.txt")
@@ -65,7 +65,7 @@ def main(argv):
     # temp3 = LabeledVector.resetUID(temp2)
 
     # This line for saving vector list to a file
-    # sv_LabelVect("./data", "cam_vect_21_40.txt", temp3)
+    sv_LabelVect("./data", "cam_vect_gps_corrected.txt", lvect)
 
 
 
@@ -337,9 +337,12 @@ def show_markedvid(argv, vlist, fps=40):
         roi_mask = cv2.imread(roipath, cv2.IMREAD_GRAYSCALE)
 
         # # Ground Truth
-        # csv_file = open(gtpath, mode='r')
-        # gt = csv.reader(csv_file)
-        # bb = list(map(int, gt.__next__()))
+        # if os.path.isfile(gtpath):
+        #     csv_file = open(gtpath, mode='r')
+        #     gt = csv.reader(csv_file)
+        #     bb = list(map(int, gt.__next__()))
+        # else:
+        #     bb = []
 
         cap = cv2.VideoCapture(vpath)
 
@@ -386,10 +389,10 @@ def show_markedvid(argv, vlist, fps=40):
                         color=(0, 255, 0))
 
             # Labeling ground truth
-            # while (int(bb[0]) <= fcount):
+            # while bb and (int(bb[0]) <= fcount):
             #     id = bb[1]
-            #     tlpt = (bb[2], bb[3])  # Top-left pt
-            #     brpt = (bb[2] + bb[4], bb[3] + bb[5])  # Bottom-right pt
+            #     tlpt = (int(bb[2] * scale), int(bb[3] * scale))  # Top-left pt
+            #     brpt = (int((bb[2] + bb[4])*scale), int((bb[3] + bb[5])*scale))  # Bottom-right pt
             #
             #     cv2.putText(frame, str(id), org=tlpt,
             #                 fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, thickness=2,
@@ -400,7 +403,11 @@ def show_markedvid(argv, vlist, fps=40):
             #     #            thickness=-1)
             #     bb = list(map(int, gt.__next__()))
 
-            winname = "Camera {0}: Annotated point pairs".format(camid + 1)
+            # winname = "Camera {0}: Annotated point pairs".format(camid + 1)
+            winname = "Annotated Vectors"
+            frame = cv2.putText(frame, "Cam{0}".format(camid+1), org=(int(vW/2)-125, 25),
+                        fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1, thickness=1,
+                        color=(0, 255, 0))
             cv2.imshow(winname, frame)
 
             kp = cv2.waitKey(int(1000/fps))
@@ -416,14 +423,14 @@ def show_markedvid(argv, vlist, fps=40):
                     camid = cam_max
                 else:
                     camid -= 1
-                cv2.destroyWindow(winname)
+                # cv2.destroyWindow(winname)
                 break
             if kp == ord('n'):  # Next Camera
                 if camid == cam_max:
                     camid = cam_min
                 else:
                     camid += 1
-                cv2.destroyWindow(winname)
+                # cv2.destroyWindow(winname)
                 break
             if kp == 27 or kp == 113 or kp == 81:  # ESC, q, Q:
                 camid += 1
