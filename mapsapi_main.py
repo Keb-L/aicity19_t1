@@ -6,6 +6,7 @@ from datetime import datetime
 import vidPOI as vp
 from color_dict import html_color_codes as htmlcc
 from collections import deque
+import json
 
 colormap = {'black':    '0x000000',
             'gray':     '0x808080',
@@ -24,9 +25,74 @@ def main(argv):
         argv = list(map(int, argv))
     # gmaps = googlemaps.Client(key='AIzaSyBLWctOyJYmEg4j-sZIWxvBWswzgIFUd2U')
 
-    with open("./data/waypoints_1_40_v2.txt") as f:
+    with open("./data/waypoints_1_40_v2.txt", "r") as f:
         gpslist = f.read().splitlines()
     gpslist = [np.fromstring(x, sep=' ', dtype=np.float64) for x in gpslist]
+
+    with open("./data/wp_gps_pairs.txt", "r") as f:
+        wp_gps = f.read().splitlines()
+    wp_gps = [np.fromstring(x, sep=' ', dtype=np.float64) for x in wp_gps]
+    # wp_gps = [x.split(sep=" ") for x in wp_gps]
+
+    with open("./data/wp_pairs.txt", "r") as f:
+        wplist = f.read().splitlines()
+    wplist = [np.fromstring(x, sep=' ', dtype=np.int) for x in wplist]
+
+
+    # Read json
+    with open("./data/gmaps_dir_out.json", "r") as f:
+        path_dict = f.read()
+    path_dict = json.loads(path_dict)
+    print()
+
+    # Directions API calls
+    # gmaps_dir_main(wplist, wp_gps)
+
+    # Static API calls
+    # staticAPI_main(gpslist)
+
+def gmaps_dir_main(wplist, wp_gps):
+    """
+    Outputs the directions API queries to a json file
+
+    :param wplist:
+    :param wp_gps: waypoint pairs list
+    :return:
+    """
+    gmaps = googlemaps.Client(key='AIzaSyAcrr9cNHjm1IIgt1txjG9TAL-r5_Bx5TY')
+
+    # req = googlemaps.directions()
+    # Define directions parameters
+    mode = "driving"    # Driving
+    units = "metric"    # Metric Units
+    language = "en"     # English
+    departure_time = "now"
+    traffic_model = "best_guess"
+
+    # origin = [",".join(x[0:2]) for x in wp_gps]
+    # dest = [",".join(x[2:4]) for x in wp_gps]
+    origin = [x[0:2] for x in wp_gps]
+    dest = [x[2:4] for x in wp_gps]
+
+    # query = gmaps.distance_matrix(origins=origin, destinations=dest,
+    #                               mode=mode, units=units, language=language, departure_time=departure_time,
+    #                               traffic_model=traffic_model)
+    query_out = dict()
+    i = 0
+    for o, d in zip(origin, dest):
+        query = gmaps.directions(origin=o, destination=d,
+                                  mode=mode, units=units, language=language, departure_time=departure_time, traffic_model=traffic_model)
+
+        query_out[" ".join(map(str, wplist[i]))] = query
+        i += 1
+        # fid.write(json.dumps(query))
+
+    fid = open("./data/gmaps_dir_out.json", "w")
+    fid.write(json.dumps(query_out))
+    fid.close()
+    print()
+
+def staticAPI_main(gpslist):
 
     # Camera filter
     # np.arange(start, end+1)
@@ -71,7 +137,6 @@ def main(argv):
     #             ex_ct = 0
     #         marker_list.append([*lvect.gps[0:2], marker_lbl, marker_c])
 
-
     apikey = 'AIzaSyAcrr9cNHjm1IIgt1txjG9TAL-r5_Bx5TY'
     mapsize = [640, 640]
     sz = None # {None, small, mid, tiny}
@@ -82,6 +147,7 @@ def main(argv):
     mquery = genSimpleMarkerQuery2(gpslist)
     # mquery = genMarkerQuery(marker_list, sz=None)
     queryStaticAPI(key=apikey, size=mapsize, scale=mapscale, zoom=mapzoom, center=mapcenter, markers=mquery)
+
 
 
 def queryStaticAPI(key, size, scale, zoom, center, markers):
