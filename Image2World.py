@@ -62,7 +62,7 @@ def main(argv):
     #     print()
 
 def vlist2world(camid, vlist, scale=1):
-    [H, D, K] = get_calibration(camid)
+    # [H, D, K] = get_calibration(camid)
 
     for i in range(0, len(vlist)):
         gps_pt = pt2world(camid, vlist[i].center, scale)
@@ -80,14 +80,13 @@ def pt2world(camid, pt, scale=1):
     pt = np.array([[pt]], dtype=np.float64) / scale
     if D is not None and K is not None:
         pt = cv2.fisheye.undistortPoints(pt, K, D, None, None, K)
-    gps_pt = np.linalg.inv(H) @ np.transpose([np.append(pt, 1)])
+    pt = np.append(pt, 1)
+    gps_pt = np.linalg.inv(H) @ np.transpose(pt)
     gps_pt = gps_pt / gps_pt[2]
-    gps_pt = [x[0] for x in gps_pt]
+    # gps_pt = [x[0] for x in gps_pt]
     return gps_pt
 
 def get_calibration(camid):
-    VRES = DataIO.ld_vidres('./lib/cam_res.txt')
-
     # Read the calibration file and convert the text format to a np.Matrix
     with open(FPATH[camid] + 'calibration.txt', 'r') as f:
         mat_str = f.read().splitlines()
@@ -99,6 +98,7 @@ def get_calibration(camid):
     K = None
 
     if len(mat_str) > 1:
+        VRES = DataIO.ld_vidres('./lib/cam_res.txt')
         cap_H = VRES[camid][0]
         cap_W = VRES[camid][1]
 

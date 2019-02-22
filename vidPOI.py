@@ -46,7 +46,8 @@ def main(argv):
     # annotate_image([1, 40], ldpath="./data/cam_vect_1_40_Feb3.txt", svpath="./data/cam_vect_1_40_Feb4.txt")
 
     # This line for loading the clean vector data
-    lvect = ld_LabelVect("./data", "cam_vect_1_40_clean.txt")
+    # lvect = ld_LabelVect("./data", "cam_vect_1_40_clean_edited_ cam1-20.txt")
+    lvect = ld_LabelVect("./data", "cam_vect_1_40_clean_edited.txt")
 
     # This line for checking/ensuring unique UID
     # if not hasUniqueUID(temp):
@@ -65,7 +66,7 @@ def main(argv):
     # temp3 = LabeledVector.resetUID(temp2)
 
     # This line for saving vector list to a file
-    sv_LabelVect("./data", "cam_vect_gps_corrected.txt", lvect)
+    # sv_LabelVect("./data", "cam_vect_gps_corrected.txt", lvect)
 
 
 
@@ -567,7 +568,7 @@ def modify_vector(vec_id, camid, p_type):
         p_str = "entry"
     elif p_type == 1:
         color = (0, 255, 255)  # Yellow
-            p_str = "exit"
+        p_str = "exit"
     else:
         color = (255, 255, 0)  # Cyan
         raise Exception("Unknown point type!")
@@ -602,7 +603,7 @@ class LabeledVector:
         self.p_type = p_type
 
         if gps is None:
-            self.gps = Image2World.pt2world(camid-1, self.center, scale=scale)
+            self.gps = Image2World.pt2world(camid-1, self.vector[0])
         else:
             self.gps = gps
 

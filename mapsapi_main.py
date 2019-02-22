@@ -20,55 +20,68 @@ colormap = {'black':    '0x000000',
             'white':    '0xFFFFFF'}
 
 def main(argv):
-    gmaps = googlemaps.Client(key='AIzaSyAcrr9cNHjm1IIgt1txjG9TAL-r5_Bx5TY')
+    if argv:
+        argv = list(map(int, argv))
+    # gmaps = googlemaps.Client(key='AIzaSyBLWctOyJYmEg4j-sZIWxvBWswzgIFUd2U')
 
+    with open("./data/waypoints_1_40_v2.txt") as f:
+        gpslist = f.read().splitlines()
+    gpslist = [np.fromstring(x, sep=' ', dtype=np.float64) for x in gpslist]
 
+    # Camera filter
+    # np.arange(start, end+1)
+    # gpslist = list(filter(lambda x: x[1] in np.arange(21, 40+1), gpslist))
 
+    # Waypoint filter, np.arange(start, end + 1)
+    # Waypoint groups:
+    #   0, 5
+    #   5, 10
+    #
+    gpslist = list(filter(lambda x: x[0] in np.arange(45, 47+1), gpslist))
 
-    vlist = vp.ld_LabelVect("./data", "cam_vect_gps_corrected.txt")
-    scenelist = [list(range(1, 6)), list(range(6, 10)), list(range(10, 41))]
+    print()
+    # vlist = vp.ld_LabelVect("./data", "cam_vect_1_40_clean_edited.txt")
 
+    # vlist_f = list(filter(lambda x: x.camid in np.arange(argv[0], argv[1]+1), vlist))
 
-    vlist_s3 = list(filter(lambda x: x.camid in scenelist[2], vlist))
+    # # colororder = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'black', 'white', 'cyan', 'magenta']
+    # colororder = ['black', 'brown', 'green', 'purple', 'yellow', 'blue', 'gray', 'orange', 'red', 'white']
 
-    # colororder = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'black', 'white', 'cyan', 'magenta']
-    colororder = ['black', 'brown', 'green', 'purple', 'yellow', 'blue', 'gray', 'orange', 'red', 'white']
+    # marker_list = list()
+    # for camid in range(argv[0], argv[1]+1):
+    #     vlist_cam = list(filter(lambda x: x.camid == camid, vlist_f))
+    #     marker_c = colororder[camid % len(colororder)]
 
-    marker_list = list()
-    for camid in range(1, 6):
-        vlist_cam = list(filter(lambda x: x.camid == camid, vlist))
-        marker_c = colororder[camid % len(colororder)]
+    #     cam_en, cam_ex = vp.LabeledVector.split_vlist(vlist_cam)
 
-        cam_en, cam_ex = vp.LabeledVector.split_vlist(vlist_cam)
+    #     en_ct = ex_ct = 0
+    #     for lvect in cam_en:
+    #         marker_lbl = chr(ord('A') + en_ct)
+    #         # marker_c = htmlcc[colororder[camid % len(colororder)]]
+    #         # marker_c = color_set[camid % len(color_set)]
 
-        en_ct = ex_ct = 0
-        for lvect in cam_en:
-            marker_lbl = chr(ord('A') + en_ct)
-            # marker_c = htmlcc[colororder[camid % len(colororder)]]
-            # marker_c = color_set[camid % len(color_set)]
+    #         marker_list.append([*lvect.gps[0:2], marker_lbl, marker_c])
+    #         en_ct += 1
 
-            marker_list.append([*lvect.gps[0:2], marker_lbl, marker_c])
-            en_ct += 1
+    #     for lvect in cam_ex:
+    #         marker_lbl = chr(ord('0') + ex_ct)
+    #         ex_ct += 1
+    #         if ex_ct > 9:
+    #             print("WARNING: Overflow on exit vector count (greater than 10)")
+    #             ex_ct = 0
+    #         marker_list.append([*lvect.gps[0:2], marker_lbl, marker_c])
 
-            print()
-
-        for lvect in cam_ex:
-            marker_lbl = chr(ord('0') + ex_ct)
-            ex_ct += 1
-            if ex_ct > 9:
-                print("WARNING: Overflow on exit vector count (greater than 10)")
-                ex_ct = 0
-            marker_list.append([*lvect.gps[0:2], marker_lbl, marker_c])
-            print()
-    mquery = genMarkerQuery(marker_list)
 
     apikey = 'AIzaSyAcrr9cNHjm1IIgt1txjG9TAL-r5_Bx5TY'
     mapsize = [640, 640]
+    sz = None # {None, small, mid, tiny}
     mapscale = 2
     mapzoom = 17
     mapcenter = []#[42.498780, -90.686393]
-    queryStaticAPI(key=apikey, size=mapsize, scale=mapscale, zoom=mapzoom, center=mapcenter, markers=mquery)
 
+    mquery = genSimpleMarkerQuery2(gpslist)
+    # mquery = genMarkerQuery(marker_list, sz=None)
+    queryStaticAPI(key=apikey, size=mapsize, scale=mapscale, zoom=mapzoom, center=mapcenter, markers=mquery)
 
 
 def queryStaticAPI(key, size, scale, zoom, center, markers):
@@ -92,12 +105,66 @@ def queryStaticAPI(key, size, scale, zoom, center, markers):
     # gmap_markers = markers[0]
 
     fullquery = baseURL + "&".join([gmap_size, gmap_scale, gmap_zoom, gmap_center, gmap_markers, gmap_key])
+
+    if len(fullquery) > 2000:
+        print("Note: query is {0} characters long!".format( len(fullquery) ))
+    
     with open("queryurl.txt", "w") as f:
         f.write(fullquery)
-    print()
 
 
-def genMarkerQuery(mlist):
+def genSimpleMarkerQuery2(gpslist):
+    gps_queue = deque(gpslist)
+    i = 0
+
+    colororder = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'black', 'white']
+
+    mquery = list()
+    while gps_queue:
+        waypoint = gps_queue.popleft()
+        gps = waypoint[2:4]
+
+        cam_color = int(waypoint[0]) // 10
+        cam_lbl = chr(ord('0') + int(waypoint[0]) % 10)
+        # if cam_lbl == '9':
+        #     cam_lbl = 'A'
+        marker_str = "markers="
+        marker_color = "color:{0}".format(colororder[cam_color])
+        marker_lbl = "label:{0}".format(cam_lbl)
+        marker_loc = "{0:.06f},{1:.06f}".format(*gps)
+        marker_size = "size:{0}".format('small')
+
+        marker_str += "%7C".join([marker_lbl, marker_color, marker_size, marker_loc])
+
+        # if not gps_queue:
+        mquery.append(marker_str)
+            # break
+    return mquery
+
+
+def genSimpleMarkerQuery(gpslist):
+    gps_queue = deque(gpslist)
+    i = 0
+
+    mquery = list()
+    while gps_queue:
+        gps = gps_queue.popleft()
+
+        marker_str = "markers="
+        marker_lbl = "label:{0}".format(chr(ord('A') + i))
+        marker_loc = "{0:.06f},{1:.06f}".format(*gps[0:2])
+
+        marker_str += "%7C".join([marker_lbl, marker_loc])
+
+        if not gps_queue:
+            mquery.append(marker_str)
+            break
+    return mquery
+
+def genMarkerQuery(mlist, sz):
+    """
+    Generates marker query string
+    """
     mlist.sort(key=lambda x: x[2] + x[3])
     mlist_queue = deque(mlist)
 
@@ -108,13 +175,16 @@ def genMarkerQuery(mlist):
 
         marker_str = "markers="
         # Marker colors
-        sz = 'tiny'
+        # sz = 'small'
+        # sz = None
         marker_size = "size:{0}".format(sz)
         marker_color = "color:{0}".format(marker[3])
         marker_lbl = "label:{0}".format(marker[2])
         marker_loc = "{0:.06f},{1:.06f}".format(*marker[0:2])
 
-        if sz != 'tiny':
+        if sz is None:
+            marker_str += "%7C".join([marker_color, marker_lbl, marker_loc])
+        elif sz != 'tiny':
             marker_str += "%7C".join([marker_size, marker_color, marker_lbl, marker_loc])
         else:
             marker_str += "%7C".join([marker_size, marker_color, marker_loc])
