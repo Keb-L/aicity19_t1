@@ -551,6 +551,7 @@ def uniqueVectors(vlist):
     return ret
 
 
+
 # modify function here
 def modify_vector(vec_id, camid, p_type):
     vector_list = ld_LabelVect("./data", "cam_vect_1_40_clean.txt")
@@ -567,7 +568,7 @@ def modify_vector(vec_id, camid, p_type):
         p_str = "entry"
     elif p_type == 1:
         color = (0, 255, 255)  # Yellow
-            p_str = "exit"
+        p_str = "exit"
     else:
         color = (255, 255, 0)  # Cyan
         raise Exception("Unknown point type!")
@@ -583,6 +584,8 @@ def modify_vector(vec_id, camid, p_type):
     window_name = "Camera {0}: Select {1} point pairs...".format(camid, p_str)
 
     cv2.imshow(winname, frame)
+    cv2.setMouseCallback(winname, on_click, [winname, frame.copy(), overlay])
+
 
 
 @total_ordering
