@@ -7,6 +7,8 @@ import vidPOI as vp
 from color_dict import html_color_codes as htmlcc
 from collections import deque
 import json
+import uuid
+import urllib.request
 
 colormap = {'black':    '0x000000',
             'gray':     '0x808080',
@@ -25,7 +27,7 @@ def main(argv):
         argv = list(map(int, argv))
     # gmaps = googlemaps.Client(key='AIzaSyBLWctOyJYmEg4j-sZIWxvBWswzgIFUd2U')
 
-    with open("./data/waypoints_1_40_v2.txt", "r") as f:
+    with open("./data/waypoints_1_40_v3.txt", "r") as f:
         gpslist = f.read().splitlines()
     gpslist = [np.fromstring(x, sep=' ', dtype=np.float64) for x in gpslist]
 
@@ -43,13 +45,13 @@ def main(argv):
     with open("./data/gmaps_dir_out.json", "r") as f:
         path_dict = f.read()
     path_dict = json.loads(path_dict)
-    print()
 
+    # staticAPI_poly_main(path_dict)
     # Directions API calls
     # gmaps_dir_main(wplist, wp_gps)
 
     # Static API calls
-    # staticAPI_main(gpslist)
+    staticAPI_marker_main(gpslist)
 
 def gmaps_dir_main(wplist, wp_gps):
     """
@@ -92,7 +94,39 @@ def gmaps_dir_main(wplist, wp_gps):
     fid.close()
     print()
 
-def staticAPI_main(gpslist):
+
+def staticAPI_poly_main(path_dict):
+    path_str = list()
+    for k in path_dict:
+        v = path_dict[k]
+        path_str.append(v[0]['overview_polyline']['points'])
+
+
+    baseURL = 'https://maps.googleapis.com/maps/api/staticmap?'
+
+    apikey = 'AIzaSyAcrr9cNHjm1IIgt1txjG9TAL-r5_Bx5TY'
+    mapsize = [640, 640]
+    mapstyle = 'style=feature:all|element:labels|visibility:off'
+    sz = None  # {None, small, mid, tiny}
+    mapscale = 2
+    mapzoom = 15
+    mapcenter = [42.496553, -90.684858]
+
+    gmap_key = 'key={0}'.format(apikey)
+
+    gmap_size = 'size={0}x{1}'.format(*mapsize)
+    gmap_scale = 'scale={0}'.format(mapscale)
+    gmap_zoom = 'zoom={0}'.format(mapzoom)
+    gmap_center = 'center={0},{1}'.format(*mapcenter)
+    gmap_paths = ["path=color:{0}%7Cweight:{1}%7Cenc:{2}".format("0x0000ff80", 3, x) for x in path_str]
+
+    fullquery = baseURL + "&".join([gmap_size, mapstyle, gmap_scale, gmap_zoom, gmap_center, *gmap_paths, gmap_key])
+    retrieve_image(fullquery)
+    # with open("queryurl.txt", "w") as f:
+    #     f.write(fullquery)
+
+
+def staticAPI_marker_main(gpslist):
 
     # Camera filter
     # np.arange(start, end+1)
@@ -103,7 +137,10 @@ def staticAPI_main(gpslist):
     #   0, 5
     #   5, 10
     #
-    gpslist = list(filter(lambda x: x[0] in np.arange(45, 47+1), gpslist))
+
+
+    # @Charles change this range!
+    gpslist = list(filter(lambda x: (x[0] % 100)in np.arange(4, 7+1), gpslist))
 
     print()
     # vlist = vp.ld_LabelVect("./data", "cam_vect_1_40_clean_edited.txt")
@@ -174,9 +211,9 @@ def queryStaticAPI(key, size, scale, zoom, center, markers):
 
     if len(fullquery) > 2000:
         print("Note: query is {0} characters long!".format( len(fullquery) ))
-    
-    with open("queryurl.txt", "w") as f:
-        f.write(fullquery)
+    retrieve_image(fullquery)
+    # with open("queryurl.txt", "w") as f:
+    #     f.write(fullquery)
 
 
 def genSimpleMarkerQuery2(gpslist):
@@ -190,7 +227,7 @@ def genSimpleMarkerQuery2(gpslist):
         waypoint = gps_queue.popleft()
         gps = waypoint[2:4]
 
-        cam_color = int(waypoint[0]) // 10
+        cam_color = (int(waypoint[0]) % 100) // 10
         cam_lbl = chr(ord('0') + int(waypoint[0]) % 10)
         # if cam_lbl == '9':
         #     cam_lbl = 'A'
@@ -198,7 +235,7 @@ def genSimpleMarkerQuery2(gpslist):
         marker_color = "color:{0}".format(colororder[cam_color])
         marker_lbl = "label:{0}".format(cam_lbl)
         marker_loc = "{0:.06f},{1:.06f}".format(*gps)
-        marker_size = "size:{0}".format('small')
+        marker_size = "size:{0}".format('tiny')
 
         marker_str += "%7C".join([marker_lbl, marker_color, marker_size, marker_loc])
 
@@ -270,6 +307,14 @@ def genMarkerQuery(mlist, sz):
         mquery.append(marker_str)
     # temp = "&".join(mquery)
     return mquery
+
+def retrieve_image(query, svpath=None):
+    if svpath is None:
+        svpath = "temp/" + str(uuid.uuid4().hex) + ".png"
+
+    print("Writing to {0}".format(svpath))
+    ret = urllib.request.urlretrieve(query)
+    cv2.imwrite(svpath, cv2.imread(ret[0]))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 import numpy as np
 import cv2 as cv2
+from main import gmaps_dir_extract
 
 # Define Track parameters
 train_set_1 = list(range(1, 6))  # Scenario 1, Cameras 1 to 5
@@ -68,8 +69,6 @@ def main():
         if [y, x] not in data_pairs:
             data_pairs.append([x, y])
 
-
-
     """
     # Get/write waypoint set
        c2wp: dictionary mapping camera to waypoints (in the camera)
@@ -87,8 +86,8 @@ def main():
             arg3: get_wp_set output
             arg4: waypoint string descriptor (train/test)
     """
-    dump_wp_main(data_pairs, wplist)
-    # write_wp_main(data_pairs, c2wp)
+    # dump_wp_main(data_pairs, wplist)
+    write_wp_main(data_pairs, c2wp, wplist)
     print()
 
 def dump_wp_main(data_pairs, wplist):
@@ -101,25 +100,25 @@ def dump_wp_main(data_pairs, wplist):
     fid2.close()
     print()
 
-def write_wp_main(data_pairs, c2wp):
-    wp_train_set = get_wp_set(c2wp, train_set)
-    write_wp_file("data/S134_pairs.txt", data_pairs, wp_train_set, "train")
+def write_wp_main(data_pairs, c2wp, wplist):
+    # wp_train_set = get_wp_set(c2wp, train_set)
+    # write_wp_file("data/S134_pairs.txt", data_pairs, wp_train_set, "train")
     wp_train_set = get_wp_set(c2wp, train_set_1)
-    write_wp_file("data/S1_pairs.txt", data_pairs, wp_train_set, "train")
+    write_wp_file("data/S1_pairs.txt", data_pairs, wp_train_set, "train", wplist)
     wp_train_set = get_wp_set(c2wp, train_set_3)
-    write_wp_file("data/S3_pairs.txt", data_pairs, wp_train_set, "train")
+    write_wp_file("data/S3_pairs.txt", data_pairs, wp_train_set, "train", wplist)
     wp_train_set = get_wp_set(c2wp, train_set_4)
-    write_wp_file("data/S4_pairs.txt", data_pairs, wp_train_set, "train")
+    write_wp_file("data/S4_pairs.txt", data_pairs, wp_train_set, "train", wplist)
 
-    wp_test_set = get_wp_set(c2wp, test_set)
-    write_wp_file("data/S25_pairs.txt", data_pairs, wp_test_set, "test")
+    # wp_test_set = get_wp_set(c2wp, test_set)
+    # write_wp_file("data/S25_pairs.txt", data_pairs, wp_test_set, "test")
     wp_test_set = get_wp_set(c2wp, test_set_2)
-    write_wp_file("data/S2_pairs.txt", data_pairs, wp_test_set, "test")
+    write_wp_file("data/S2_pairs.txt", data_pairs, wp_test_set, "test", wplist)
     wp_test_set = get_wp_set(c2wp, test_set_5)
-    write_wp_file("data/S5_pairs.txt", data_pairs, wp_test_set, "test")
+    write_wp_file("data/S5_pairs.txt", data_pairs, wp_test_set, "test", wplist)
 
-    wp_all_set = get_wp_set(c2wp, all_set)
-    write_wp_file("data/SAll_pairs.txt", data_pairs, wp_all_set, "all")
+    # wp_all_set = get_wp_set(c2wp, all_set)
+    # write_wp_file("data/SAll_pairs.txt", data_pairs, wp_all_set, "all")
 
 
 def get_wp_set(c2wp, cam_set):
@@ -135,7 +134,7 @@ def get_wp_set(c2wp, cam_set):
     return wp_set
 
 
-def write_wp_file(sv_file, wp_pairs, wp_set, wp_type):
+def write_wp_file(sv_file, wp_pairs, wp_set, wp_type, wplist):
     """
     Writes the relevant waypoint pairs to the file.
 
@@ -150,13 +149,15 @@ def write_wp_file(sv_file, wp_pairs, wp_set, wp_type):
         # If statements enforce the waypoint conditions.
 
         # Condition: both endpoints in the waypoint set -> pair[0] in wp_set and pair[1] in wp_set
-        # if pair[0] in wp_set and pair[1] in wp_set:  # Check to see if waypoint is in the camera set
+        if pair[0] in wp_set and pair[1] in wp_set:  # Check to see if waypoint is in the camera set
         #     fid.write("{0} {1} {2}\n".format(*pair, wp_type))
 
         # Condition: any endpoint in waypoint set -> any(x in wp_set for x in pair)
-        if any(x in wp_set for x in pair):
-            fid.write("{0} {1} {2}\n".format(*pair, wp_type))
-
+        # if any(x in wp_set for x in pair):
+            gps_start = wplist[pair[0]]
+            gps_end = wplist[pair[1]]
+            t, d, l = gmaps_dir_extract([gps_start, gps_end])
+            fid.write("{:d} {:d} {:s} {:.06f} {:.06f} {:.06f} {:.06f} {:d} {:d} {:s}\n".format(*pair, wp_type, *gps_start, *gps_end, t, d, l))
     fid.close()
 
 if __name__ == "__main__":
