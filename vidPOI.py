@@ -28,7 +28,7 @@ from functools import total_ordering
 import ntpath
 import csv
 
-with open('./lib/list_cam_u.txt') as f:
+with open('./lib/list_cam_test.txt') as f:
     FPATH = f.read().splitlines()
 
 # Globals
@@ -46,7 +46,8 @@ def main(argv):
     # annotate_image([1, 40], ldpath="./data/cam_vect_1_40_Feb3.txt", svpath="./data/cam_vect_1_40_Feb4.txt")
 
     # This line for loading the clean vector data
-    lvect = ld_LabelVect("./data", "cam_vect_1_40_clean.txt")
+    # lvect = ld_LabelVect("./data", "cam_vect_1_40_clean_edited_ cam1-20.txt")
+    lvect = ld_LabelVect("./data", "cam_vect_1_40_clean_edited.txt")
 
     # This line for checking/ensuring unique UID
     # if not hasUniqueUID(temp):
@@ -59,13 +60,13 @@ def main(argv):
     # show_markedimg([1, 40], temp1, writeimg=True, iterate=True)
 
     # This line for viewing the video with vector annotations
-    show_markedvid(argv, lvect, fps=25)
+    show_markedvid(argv, lvect, fps=500)
 
     # This line for resetting vector UID
     # temp3 = LabeledVector.resetUID(temp2)
 
     # This line for saving vector list to a file
-    sv_LabelVect("./data", "cam_vect_gps_corrected.txt", lvect)
+    # sv_LabelVect("./data", "cam_vect_gps_corrected.txt", lvect)
 
 
 
@@ -324,6 +325,9 @@ def show_markedvid(argv, vlist, fps=40):
     else:
         argv = [1, 40]
 
+    if argv[1] >= len(FPATH):
+        argv[1] = len(FPATH) - 1
+
     en_list, ex_list = LabeledVector.split_vlist(vlist)
     cam_min = argv[0] - 1
     cam_max = argv[1] - 1
@@ -346,23 +350,27 @@ def show_markedvid(argv, vlist, fps=40):
 
         cap = cv2.VideoCapture(vpath)
 
-        en_cam_list = list(filter(lambda x: x.camid == camid + 1, en_list))
-        ex_cam_list = list(filter(lambda x: x.camid == camid + 1, ex_list))
-
         vH, vW = [int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)), int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))]
         overlay = np.zeros((vH, vW, 3), dtype=np.uint8)
-        for v in en_cam_list:
-            overlay = cv2.arrowedLine(overlay, v.vector[0], v.vector[1], (255, 0, 255),
-                                    thickness=4, line_type=4, tipLength=0.10)
-            overlay = cv2.putText(overlay, "{0}-{1}".format(v.p_type, v.UID), org=v.center,
-                                fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1.5, thickness=2, color=(255, 0, 255))
-        for v in ex_cam_list:
-            overlay = cv2.arrowedLine(overlay, v.vector[0], v.vector[1], (0, 255, 255),
-                                    thickness=4, line_type=4, tipLength=0.10)
-            overlay = cv2.putText(overlay, "{0}-{1}".format(v.p_type, v.UID), org=v.center,
-                                    fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1.5, thickness=2, color=(0, 255, 255))
-
         overlay = cv2.resize(overlay, None, fx=scale, fy=scale)
+
+        if camid < 40:
+            en_cam_list = list(filter(lambda x: x.camid == camid + 1, en_list))
+            ex_cam_list = list(filter(lambda x: x.camid == camid + 1, ex_list))
+
+            for v in en_cam_list:
+                overlay = cv2.arrowedLine(overlay, v.vector[0], v.vector[1], (255, 0, 255),
+                                        thickness=4, line_type=4, tipLength=0.10)
+                overlay = cv2.putText(overlay, "{0}-{1}".format(v.p_type, v.UID), org=v.center,
+                                    fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1.5, thickness=2, color=(255, 0, 255))
+            for v in ex_cam_list:
+                overlay = cv2.arrowedLine(overlay, v.vector[0], v.vector[1], (0, 255, 255),
+                                        thickness=4, line_type=4, tipLength=0.10)
+                overlay = cv2.putText(overlay, "{0}-{1}".format(v.p_type, v.UID), org=v.center,
+                                        fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1.5, thickness=2, color=(0, 255, 255))
+
+
+
         roi_mask = cv2.resize(roi_mask, None, fx=scale, fy=scale)
         ret, mask = cv2.threshold(cv2.cvtColor(overlay, cv2.COLOR_BGR2GRAY), 1, 255, cv2.THRESH_BINARY)
         fcount = 0
@@ -605,7 +613,7 @@ class LabeledVector:
         self.p_type = p_type
 
         if gps is None:
-            self.gps = Image2World.pt2world(camid-1, self.center, scale=scale)
+            self.gps = Image2World.pt2world(camid-1, self.vector[0])
         else:
             self.gps = gps
 
