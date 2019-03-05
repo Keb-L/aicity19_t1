@@ -352,7 +352,6 @@ def show_markedvid(argv, vlist, fps=40):
 
         vH, vW = [int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)), int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))]
         overlay = np.zeros((vH, vW, 3), dtype=np.uint8)
-        overlay = cv2.resize(overlay, None, fx=scale, fy=scale)
 
         if camid < 40:
             en_cam_list = list(filter(lambda x: x.camid == camid + 1, en_list))
@@ -370,6 +369,7 @@ def show_markedvid(argv, vlist, fps=40):
                                         fontFace=cv2.FONT_HERSHEY_DUPLEX, fontScale=1.5, thickness=2, color=(0, 255, 255))
 
 
+        overlay = cv2.resize(overlay, None, fx=scale, fy=scale)
 
         roi_mask = cv2.resize(roi_mask, None, fx=scale, fy=scale)
         ret, mask = cv2.threshold(cv2.cvtColor(overlay, cv2.COLOR_BGR2GRAY), 1, 255, cv2.THRESH_BINARY)
