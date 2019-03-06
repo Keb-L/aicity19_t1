@@ -195,14 +195,23 @@ def plot_pair():
     normal_data = []
     for key, value in traffic_duration_dict.items():
         y = value
-        traffic_data.append(np.array(value))
-        print()
+        first_waypoint = ""
+        second_waypoint = ""
+        for i in range(len(key)):
+            if key[i] == ',':
+                first_waypoint = key[:i]
+                second_waypoint = key[i+1:]
+        first_waypoint = int(first_waypoint)
+        second_waypoint = int(second_waypoint)
+        waypoint_pair = [first_waypoint, second_waypoint]
+        res = waypoint_pair + value
+        traffic_data.append(np.array(res))
         x = np.arange(6, 18, 0.25)
         plt.title('camera pair ' + key)
         plt.xlabel('clock time')
         plt.ylabel('travel time')
         plt.plot(x, y)
-        plt.show()
+        # plt.show()
 
     for key, value in normal_duration_dict.items():
         y = value
@@ -212,7 +221,7 @@ def plot_pair():
         plt.xlabel('clock time')
         plt.ylabel('travel time')
         plt.plot(x, y)
-        plt.show()
+        # plt.show()
 
     a.writerows(traffic_data)
     c.writerows(normal_data)
