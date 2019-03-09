@@ -50,7 +50,7 @@ def main(argv):
     ap.add_argument("-m", "--marker", action="store_true", default=False, help="generate marker plot")
     ap.add_argument("-p", "--polyline", action="store_true", default=False, help="generate polyline plot")
 
-    ap.add_argument("-s", "--scenario", nargs=2, default=[1, 5], help="Scenario ID")
+    ap.add_argument("-s", "--scenario", nargs=2, default=[1, 6], help="Scenario ID")
     ap.add_argument("-c", "--camera", nargs=2, default=[1, 40], help="Camera range")
     ap.add_argument("-z", "--zoom", nargs=1, default=17, help="Google Maps zoom level")
     arg_in = ap.parse_args()
@@ -125,15 +125,16 @@ def main(argv):
         for s in s_id:
             cam_link_main(cfg, s_id=s, cam_range=c_id)
 
-    plot_pair()
-    #camera_pair(cfg)
+    # camera_pair(cfg)
+    plot_pair(cfg)
 
-#
+
+
 # def camera_pair(cfg):
 #     waypoints_to_camera = cfg["wpmap"]
 #     waypoints_pairs = cfg["pair"]
-#     # cameras_set_from_waypoints_pairs # for every pair in waypoints pairs, get the camera set for point a & point b
 #     print()
+#     # cameras_set_from_waypoints_pairs # for every pair in waypoints pairs, get the camera set for point a & point b
 #     for pair in waypoints_pairs:
 #         set_a = set(waypoints_to_camera[pair[0]])
 #         set_b = set(waypoints_to_camera[pair[1]])
@@ -144,7 +145,7 @@ def main(argv):
 #             time = 1  # completely different
 #         else:
 #             time = 2
-#
+
 
             # link other parts that are different (part is unique to other part) whcih have travel time
             # take the one that is common and link to all the ones that are different
@@ -156,7 +157,7 @@ def main(argv):
     # both set completely different = normal/ there is transition time
     # both set got share values = to figure ot
 
-def plot_pair():
+def plot_pair(cfg):
     ts_str = []
     # March 5th, 2019
     time_year = 2019
@@ -193,25 +194,33 @@ def plot_pair():
     c = csv.writer(d)
     traffic_data = []
     normal_data = []
+
+    cam_link = {}
+    cam_link_path = './data/overall_camlink.txt'
+    with open(cam_link_path) as f:
+        for line in f:
+            single_line_array = [line.split()]
+            temp_value = single_line_array[0][0] + "," + single_line_array[0][1]
+            temp_key = single_line_array[0][4]
+            cam_link.update({temp_key : temp_value})
+        print()
+
     for key, value in traffic_duration_dict.items():
+        polyline = [dict[key][0]['overview_polyline']['points']]
+        waypoint_pair = [key]
         y = value
-        first_waypoint = ""
-        second_waypoint = ""
-        for i in range(len(key)):
-            if key[i] == ',':
-                first_waypoint = key[:i]
-                second_waypoint = key[i+1:]
-        first_waypoint = int(first_waypoint)
-        second_waypoint = int(second_waypoint)
-        waypoint_pair = [first_waypoint, second_waypoint]
-        res = waypoint_pair + value
+        if polyline[0] in cam_link:
+            cam_pair = [cam_link.get(polyline[0])]
+        else:
+            cam_pair = ["n/a"]
+        res = cam_pair + polyline + waypoint_pair + value
         traffic_data.append(np.array(res))
         x = np.arange(6, 18, 0.25)
         plt.title('camera pair ' + key)
         plt.xlabel('clock time')
         plt.ylabel('travel time')
         plt.plot(x, y)
-        # plt.show()
+        #plt.show()
 
     for key, value in normal_duration_dict.items():
         y = value
@@ -250,7 +259,7 @@ def cam_link_main(cfg, s_id=None, cam_range=None):
     link_d = traverse_cam_graph(cfg, s_id=s_id, cam_range=cam_range)
     write_cam_link(cfg, link_d, s_id=s_id)
 
-    print()
+
 
 def write_cam_link(cfg, link_dict, s_id=None):
     if s_id is not None:
@@ -291,14 +300,14 @@ def traverse_cam_graph(cfg, s_id=None, cam_range=None):
         c_range = set(cfg['scenario'][str(s_id)])
     if cam_range is not None:
         c_range = c_range.intersection(set(cam_range))
-
+    print()
     # Determine the waypoint set
     wp_range = [cfg['cammap'][str(x)] for x in c_range]
     wp_range = set([int(e) for l in wp_range for e in l])
-
     # Waypoint set
     wp_open = list(wp_range)
     wp_open.sort()
+
 
     edgelist = [x for x in cfg['pair'] if all(elem in wp_open for elem in x)]   # Retrieves all edges within wp set
 
@@ -308,6 +317,7 @@ def traverse_cam_graph(cfg, s_id=None, cam_range=None):
     for wp in wp_open:
         cam_list = cfg['wpmap'][str(wp)]
         connections = list()
+        print()
         for e in edgelist:
             if wp in e:
                 connections.append(e)
