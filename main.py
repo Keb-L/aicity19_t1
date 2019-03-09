@@ -188,10 +188,6 @@ def plot_pair(cfg):
                 normal_duration_dict[key].append(duration_normal)
                 traffic_duration_dict[key].append(duration_with_traffic)
 
-    b = open('traffic_duration.csv', 'w')
-    d = open('normal_duration.csv', 'w')
-    a = csv.writer(b)
-    c = csv.writer(d)
     traffic_data = []
     normal_data = []
 
@@ -199,10 +195,15 @@ def plot_pair(cfg):
     cam_link_path = './data/overall_camlink.txt'
     with open(cam_link_path) as f:
         for line in f:
+
             single_line_array = [line.split()]
             temp_value = single_line_array[0][0] + "," + single_line_array[0][1]
+            value = [temp_value]
             temp_key = single_line_array[0][4]
-            cam_link.update({temp_key : temp_value})
+            if temp_key in cam_link:
+                cam_link.update({temp_key: value + cam_link.get(temp_key)})
+            else:
+                cam_link.update({temp_key: value})
         print()
 
     for key, value in traffic_duration_dict.items():
@@ -232,11 +233,13 @@ def plot_pair(cfg):
         plt.plot(x, y)
         # plt.show()
 
-    a.writerows(traffic_data)
-    c.writerows(normal_data)
-    b.close()
-    print()
+    with open('traffic_duration.csv', 'w', newline='') as fp:  # note: 'wb' instead of 'w'
+        output = csv.writer(fp, delimiter=',')
+        output.writerows(traffic_data)
 
+    with open('normal_duration.csv', 'w', newline='') as fq:  # note: 'wb' instead of 'w'
+        output = csv.writer(fq, delimiter=',')
+        output.writerows(normal_data)
 
 
 
