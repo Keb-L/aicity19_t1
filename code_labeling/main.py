@@ -20,6 +20,7 @@ COLOR_NUM = 0
 VHEIGHT = 900
 VWIDTH = 1600
 
+scale = 2
 
 """
 Maintains the folders cfg, gt, labeled_vid, combined_vid
@@ -55,7 +56,7 @@ def labelVid(args):
         vpath = args['cam_path'][cam_id] + 'vdo.avi'
         cap = cv2.VideoCapture(vpath)
 
-        frame_sz = (int(cap.get(3))*args['scale'], int(cap.get(4))*args['scale'])
+        frame_sz = (int(cap.get(3))//scale, int(cap.get(4))//scale)
 
         fourcc = cv2.VideoWriter_fourcc(*'MP42')
         vout = cv2.VideoWriter(dirname + 'labeled_c{:03d}.avi'.format(cam_id), fourcc, 10.0, frame_sz)
@@ -79,7 +80,7 @@ def labelVid(args):
                 bb_list.append(bb.astype(np.int64))
             bb_ptr += len(bb_list)
 
-            frame = cv2.resize(frame, None, fx=args['scale'], fy=args['scale'])
+            frame = cv2.resize(frame, None, fx=1/scale, fy=1/scale)
 
             # Apply frame annotations
             for bb in bb_list:
@@ -265,8 +266,6 @@ if __name__ == "__main__":
 
     with open(argv.camera_file, 'r') as f:
         args['cam_path'] = f.read().splitlines()
-
-    args['scale'] = argv.scale
 
     random.shuffle(COLOR_SET)
     main(args)
