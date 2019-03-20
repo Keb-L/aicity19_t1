@@ -6,7 +6,7 @@ import uuid
 import scipy.spatial
 
 # Read the list of camera folders
-with open("./list_cam.txt", "r") as f:
+with open("./lib/list_cam.txt", "r") as f:
     vpath = f.read().splitlines()
 # Video scaling factor
 scale = 0.25
