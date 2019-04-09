@@ -1,0 +1,1 @@
+camA_ID camB_ID waypointA_ID-vector_type waypointB_ID-vector_type waypointA_start_point waypointB_start_point waypointA_end_point waypointB_end_point waypointA_GPS waypointB_GPS waypointA_vector waypointB_vector

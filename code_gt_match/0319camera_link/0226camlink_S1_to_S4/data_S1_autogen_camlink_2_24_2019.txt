@@ -1,0 +1,11 @@
+<camA> <camB> <time> <dist> <route>
+1 2 0 0 n/a
+1 3 0 0 n/a
+1 4 0 0 n/a
+1 5 0 0 n/a
+2 3 0 0 n/a
+2 4 0 0 n/a
+2 5 0 0 n/a
+3 4 0 0 n/a
+3 5 0 0 n/a
+4 5 0 0 n/a

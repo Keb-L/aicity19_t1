@@ -26,7 +26,9 @@ import os
 import Image2World
 from functools import total_ordering
 import ntpath
+import uuid
 import csv
+import re
 
 with open('./lib/list_cam_test.txt') as f:
     FPATH = f.read().splitlines()
@@ -43,11 +45,11 @@ def main(argv):
         argv = list(map(int, argv))
 
     # This line for modifying the vector annotations
-    # annotate_image([1, 40], ldpath="./data/cam_vect_1_40_Feb3.txt", svpath="./data/cam_vect_1_40_Feb4.txt")
+    annotate_image([1, len(FPATH)], ldpath=None, svpath="./data/vectors_test_set.txt")
 
     # This line for loading the clean vector data
-    # lvect = ld_LabelVect("./data", "cam_vect_1_40_clean_edited_ cam1-20.txt")
-    lvect = ld_LabelVect("./data", "cam_vect_1_40_clean_edited.txt")
+    lvect = ld_LabelVect("./data", "vectors_test_set.tmp")
+    # lvect = ld_LabelVect("./data", "cam_vect_1_40_clean_edited.txt")
 
     # This line for checking/ensuring unique UID
     # if not hasUniqueUID(temp):
@@ -60,14 +62,16 @@ def main(argv):
     # show_markedimg([1, 40], temp1, writeimg=True, iterate=True)
 
     # This line for viewing the video with vector annotations
-    show_markedvid(argv, lvect, fps=500)
+    # show_markedvid(argv, lvect, fps=500)
 
     # This line for resetting vector UID
-    # temp3 = LabeledVector.resetUID(temp2)
+    lvect_reset_id = LabeledVector.resetUID(lvect)
 
     # This line for saving vector list to a file
-    # sv_LabelVect("./data", "cam_vect_gps_corrected.txt", lvect)
+    sv_LabelVect("./data", "vectors_test_set_renorm.txt", lvect_reset_id)
 
+    # This line for dumping annotated images (duplicate)
+    show_markedimg([1, len(FPATH)], lvect_reset_id, writeimg=True, iterate=True)
 
 
 def annotate_image(camrange, svpath="./obj/cam_vect.txt", ldpath=None):
@@ -93,17 +97,21 @@ def annotate_image(camrange, svpath="./obj/cam_vect.txt", ldpath=None):
         camrange = [1, 40]
 
     # Main loop
-    for camid in range(camrange[0] - 1, camrange[1]):
-        vpath = FPATH[camid]
+    # for camid in range(camrange[0] - 1, camrange[1]):
+    for vpath in FPATH:
+        camid = int(*re.findall("c([\d]{3})", vpath)) - 1
 
         # Retrieves relevant vectors for current cam id
         vinit = list(filter(lambda x: x.camid == camid+1, prevl))
         vinit_en, vinit_ex = LabeledVector.split_vlist(vinit)
 
         # Type 0 = Enter, Type 1 = Exit
-        ret_en, overlay = get_annotation(vpath, camid + 1, p_type=0, vinit=vinit_en)
-        ret_ex, overlay = get_annotation(vpath, camid + 1, p_type=1, overlay=overlay, vinit=vinit_ex)
-
+        ret_en, overlay, break_flag = get_annotation(vpath, camid + 1, p_type=0, vinit=vinit_en)
+        if break_flag:
+            break
+        ret_ex, overlay, break_flag = get_annotation(vpath, camid + 1, p_type=1, overlay=overlay, vinit=vinit_ex)
+        if break_flag:
+            break
         # Update entry and exit lists
         while ret_en:
             vect = ret_en.pop()
@@ -215,8 +223,10 @@ def get_annotation(vpath, camid, p_type, overlay=None, vinit=None):
                 srtPt = vect.pop()      # Retrieve start point
                 cv2.arrowedLine(overlay, srtPt, endPt, (0, 0, 0), thickness=2, line_type=4, tipLength=0.10)
                 update = True
-        elif kp == 27 or kp == 113 or kp == 81:  # ESC, q, Q:
+        elif kp == ord('n'):
             break
+        elif kp == 27:  # ESC
+            return None, None, 1
 
     cap.release()
     cv2.destroyWindow(winname)
@@ -224,7 +234,7 @@ def get_annotation(vpath, camid, p_type, overlay=None, vinit=None):
     # Rescale vectors to true coordinates
     for i in range(0, len(arrlist)):
         arrlist[i] = [tuple(c/scale for c in pt) for pt in arrlist[i]]
-    return arrlist, overlay
+    return arrlist, overlay, 0
 
 
 def show_markedimg(argv, vlist, writeimg=False, iterate=False):
@@ -244,10 +254,12 @@ def show_markedimg(argv, vlist, writeimg=False, iterate=False):
     cam_min = argv[0] - 1
     cam_max = argv[1] - 1
 
-    camid = cam_min
+    ind = cam_min
     while(True):
-        vpath = FPATH[camid] + "vdo.avi"
-        roipath = FPATH[camid] + "roi.jpg"
+        vpath = FPATH[ind] + "vdo.avi"
+        roipath = FPATH[ind] + "roi.jpg"
+
+        camid = int(*re.findall("c([\d]{3})", vpath)) - 1
 
         roi_mask = cv2.imread(roipath, cv2.IMREAD_GRAYSCALE)
 
@@ -282,6 +294,7 @@ def show_markedimg(argv, vlist, writeimg=False, iterate=False):
 
         # Image dump routine
         if writeimg:
+            os.makedirs("./dump/", exist_ok=True)
             cv2.imwrite("./dump/c{0:03d}_labeled.jpg".format(camid+1), frame)
 
         # Normal operation
@@ -291,26 +304,26 @@ def show_markedimg(argv, vlist, writeimg=False, iterate=False):
             kp = cv2.waitKey(1)
             if kp == ord('b'):
                 if camid == cam_min:
-                    camid = cam_max
+                    ind = cam_max
                 else:
-                    camid -= 1
+                    ind -= 1
                 break
             if kp == ord('n'):
                 if camid == cam_max:
-                    camid = cam_min
+                    ind = cam_min
                 else:
-                    camid += 1
+                    ind += 1
                 break
             if kp == 27 or kp == 113 or kp == 81:  # ESC, q, Q:
-                camid += 1
+                ind += 1
                 break  
 
         cv2.destroyWindow(winname)
 
         # Automatic image dump
         if iterate:
-            camid += 1
-            if camid > cam_max:
+            ind += 1
+            if ind > cam_max:
                 break
 
 
@@ -618,8 +631,9 @@ class LabeledVector:
             self.gps = gps
 
         if UID is None:
-            self.UID = self._UIN[p_type]
-            self._UIN[p_type] += 1
+            self.UID = uuid.uuid4().int
+            # self.UID = self._UIN[p_type]
+            # self._UIN[p_type] += 1
         else:
             self.UID = UID
             if UID > self._UIN[p_type]:
@@ -668,11 +682,29 @@ class LabeledVector:
         en_list.sort()
         ex_list.sort()
 
+        ccamid = -1
+        counter = 0
         for i in range(0, len(en_list)):
-            en_list[i].UID = i + init[0]
+            if en_list[i].camid != ccamid:
+                ccamid = en_list[i].camid
+                counter = 0
+            en_list[i].UID = ccamid * 100 + counter
+            counter += 1
 
+        ccamid = -1
+        counter = 0
         for i in range(0, len(ex_list)):
-            ex_list[i].UID = i + init[1]
+            if ex_list[i].camid != ccamid:
+                ccamid = ex_list[i].camid
+                counter = 0
+            ex_list[i].UID = ccamid * 100 + counter
+            counter += 1
+
+        # for i in range(0, len(en_list)):
+        #     en_list[i].UID = i + init[0]
+        #
+        # for i in range(0, len(ex_list)):
+        #     ex_list[i].UID = i + init[1]
 
         cls._UIN = [init[0] + len(en_list), init[1] + len(ex_list)]
         ret = en_list

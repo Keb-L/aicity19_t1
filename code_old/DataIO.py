@@ -96,42 +96,61 @@ def ld_camlink(filename, n_cam=40, n_layer=4, st=None):
     :param st: save pointer
     :return:
     """
-    lines = list()
+    # lines = list()
+    data = list()
     with open(filename, 'r') as f:
-        lines = f.read().splitlines()
+        for line in f:
+            data.append([float(x) for x in line.split(' ')])
+        # lines = f.read().splitlines()
 
-    if(n_cam * n_layer != len(lines)):
-        print("Size mismatch between ")
-        return None
+    # if(n_cam * n_layer != len(lines)):
+    #     print("Size mismatch between ")
+    #     return None
 
     # Format line list into data structure
-    ret = list()
-    camid = 0
-    layerid = 0
-    for i in range(0, len(lines)):
-        l = lines[i]                # Get the line
+    ret = dict()
+    for line in data:
+        line = [*[int(x) for x in line[:7]], *[x for x in line[7:]]]
 
-        if layerid == n_layer:      # End of data for camera, move to next
-            layerid = 0
-            camid += 1
+        camid = line[1]
+        vtype = line[2]
 
-        if layerid == 0:            # Add a new "camera"
-            ret.append([])
-        ret[camid].append([])   # Add a new layer
+        ptlist = np.array([line[3:5], line[5:7]])
+        if camid not in ret:
+            ret[camid] = list()
+        # if vtype not in ret[camid]:
+        #     ret[camid][vtype] = list()
+        if vtype:
+            ptlist = -ptlist
 
-        # Process line
-        arr = np.fromstring(l, dtype=int, sep=' ') # Convert to array
-        arr = np.reshape(arr, (-1, 2)) # Convert to list of arrays
+        ret[camid].append(ptlist)
 
-        temp = list()
-        for elem in arr:
-            temp.append(elem)
-        temp.pop()
-
-        assert(np.array_equal(arr[-1], np.array([1, -1])))
-
-        ret[camid][layerid] = temp
-        layerid += 1
+    # camid = 0
+    # layerid = 0
+    # for i in range(0, len(lines)):
+    #     l = lines[i]                # Get the line
+    #
+    #     if layerid == n_layer:      # End of data for camera, move to next
+    #         layerid = 0
+    #         camid += 1
+    #
+    #     if layerid == 0:            # Add a new "camera"
+    #         ret.append([])
+    #     ret[camid].append([])   # Add a new layer
+    #
+    #     # Process line
+    #     arr = np.fromstring(l, dtype=int, sep=' ') # Convert to array
+    #     arr = np.reshape(arr, (-1, 2)) # Convert to list of arrays
+    #
+    #     temp = list()
+    #     for elem in arr:
+    #         temp.append(elem)
+    #     temp.pop()
+    #
+    #     assert(np.array_equal(arr[-1], np.array([1, -1])))
+    #
+    #     ret[camid][layerid] = temp
+    #     layerid += 1
 
     st = ret
     return st

@@ -8,171 +8,15 @@ import scipy.spatial
 # Read the list of camera folders
 with open("./lib/list_cam.txt", "r") as f:
     vpath = f.read().splitlines()
+
 # Video scaling factor
 scale = 0.25
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-i", "--image", action="store_true", default=False, help="save background images")
-    ap.add_argument("-v", "--video", action="store_true", default=False, help="save bg/fg videos")
-    ap.add_argument("-p", "--play", action="store_true", default=False, help="Show current frames (will incur runtime increase)")
-
-    ap.add_argument("-ld", "--lane_detect", action="store_true", default=False, help="lane detection")
-
-    ap.add_argument("-bgr", "--bgratio", action="store", type=float, default=0.9, help="If a foreground pixel keeps semi-constant value for about backgroundRatio*history frames, it's considered background")
-    ap.add_argument("-ct", "--complexity", action="store", type=float, default=-1, help="(frames) measure of the maximum portion of the data that can belong to foreground objects without influencing the background model")
-    ap.add_argument("-hist", "--history", action="store", type=int, default=128, help="number of last frames that affect the background model.")
-    ap.add_argument("-var", "--variance", action="store", type=int, default=9, help="variance threshold for the pixel-model match")
-    ap.add_argument("-vinit", "--variance_init", action="store", type=int, default=15, help="initial variance of each gaussian component.")
-    ap.add_argument("-nmix", "--nmixtures", action="store", type=int, default=5, help="number of gaussian components in the background model.")
-    ap.add_argument("-lr", "--learn_rate", action="store", type=float, default=-1, help="value between 0 and 1 that indicates how fast the background model is learnt")
-
-    arg_in = ap.parse_args()
-
-    # hsv_test(arg_in)
-    bg_subtract(arg_in)
+# aggregate (heatmap) learning rate
 
 
-
-def hsv_test(arg_in):
-    """
-    MOG2 Paper: http://www.zoranz.net/Publications/zivkovicPRL2006.pdf
-    python3 bgfg_generate.py -v -i -hist 256 -nmix 4 -var 25 -bgr 0.6 -lr 0.005 -ct 256
-
-    """
-    global vpath
-    # Only run specific videos (specify here)
-    # vpath = [vpath[44], vpath[54], vpath[55]]
-    for v in vpath[41:]:  # Test Videos only, modify this to include other videos
-        # Setup VideoCapture object (read Video)
-        cap = cv2.VideoCapture(v + "vdo.avi")
-
-        # Target directory name
-        dirname = "./temp/{0}_{1}_{2}/".format(*v.split('/')[1:-1])
-        mkdir_ifndef(dirname)   # Make directory if not exist
-
-        # get video width/height, modified by scale
-        vh = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)*scale)
-        vw = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)*scale)
-        if arg_in.video:
-            fourcc = cv2.VideoWriter_fourcc(*'XVID')
-            v_out = cv2.VideoWriter(dirname + 'v_out.avi', fourcc, 10.0, (2*vh, 2*vw))
-            fg_out = cv2.VideoWriter(dirname + 'fg_roi.avi', fourcc, 10.0, (vh, vw))
-
-        # Read in ROI images, first is applied before background subtraction
-        vroi = cv2.imread(v + "roi.jpg", cv2.IMREAD_GRAYSCALE)
-        vroi = cv2.resize(vroi, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-        # Applied after filter
-        vroi2 = cv2.imread(v + "roi.jpg", cv2.IMREAD_GRAYSCALE)
-        vroi2 = cv2.resize(vroi2, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-
-        """MOG2 Background Subtractor
-        Background Ratio (TB)               If a foreground pixel keeps semi-constant value for about backgroundRatio*history frames, it's considered background
-        Complexity Reduction Threshold (Cf) measure of the maximum portion of the data that can belong to foreground objects without influencing the background model
-                                            For a foreground pixel to become background, it should be static for log(1-Cf)/log(1-alpha)
-
-        History:                            number of last frames that affect the background model.
-        N-Mixtures:                         number of gaussian components in the background model.
-        Variance Threshold (C_thr):         variance threshold for the pixel-model match.
-        Initial Variance                    initial variance of each gaussian component.
-        """
-        bs = cv2.createBackgroundSubtractorMOG2(detectShadows=True)
-
-        bs.setBackgroundRatio(arg_in.bgratio)                   # Background Ratio (def: 0.9)
-        bs.setHistory(arg_in.history)                           # History (def 500)
-        bs.setNMixtures(arg_in.nmixtures)                       # Number of Gaussian Mixtures (def 5)
-        bs.setVarInit(arg_in.variance_init)                     # Initial Variance of new Mixtures (def 15)
-        bs.setVarThreshold(arg_in.variance)                     # Variance threshold to trigger (def 16)
-        # bs.setComplexityReductionThreshold(arg_in.complexity)   # Complexity Reduction Threshold (def 0.05)
-        learn_rate = 0.09                                      # Initial Learning rate
-
-        # conditions for complexity/learning_rate defaults (-1)
-        if arg_in.complexity < 0 or arg_in.learn_rate < 0:
-            cmpx_reduction_factor = 0.05
-            cmpx_reduction_frames = -1
-        else:
-            cmpx_reduction_frames = arg_in.complexity
-            cmpx_reduction_factor = 1 - np.exp(arg_in.complexity * np.log(1-arg_in.learn_rate))
-
-        print("Setting up MOG2 Background subtractor...\n"
-              "\tImage Resolution = {:0.0f}x{:0.0f}\n"
-              "\tBackground Ratio = {:0.3f}\n"
-              "\tHistory = {:0.0f}\n"
-              "\tVariance = {:0.0f}\n"
-              "\tLearning Rate (< History) = {:0.3f}\n"
-              "\tLearning Rate (>= History) = {:0.3f}\n"
-              "\tComplexity Reduction Threshold (ratio) = {:0.3f}\n"
-              "\tComplexity Reduction Threshold (frames) = {:0.0f}\n"
-              "\tN-Mixtures = {:0.0f}".format(vh, vw, bs.getBackgroundRatio(), bs.getHistory(), bs.getVarThreshold(), learn_rate, arg_in.learn_rate, cmpx_reduction_factor, cmpx_reduction_frames,  bs.getNMixtures()))
-
-        # Read every frame of video
-        while True:
-            ret, frame = cap.read()
-            frame_num = cap.get(cv2.CAP_PROP_POS_FRAMES)  # Current frame number
-            if not ret:  # false if at end of Video
-                break
-
-            # Set trigger for changing learning rate
-            if frame_num < bs.getHistory():
-                learn_rate = arg_in.learn_rate + (learn_rate - arg_in.learn_rate) * 0.98
-            elif frame_num == bs.getHistory():
-                learn_rate = arg_in.learn_rate
-                bs.setComplexityReductionThreshold(cmpx_reduction_factor)
-
-            frame = cv2.GaussianBlur(frame, (5, 5), 0)  # Initial Blurring before downscale
-            # frame = cv2.blur(frame, (5, 5))  # Initial Blurring before downscale
-
-            frame = cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-            frame = cv2.bitwise_and(frame, frame, mask=vroi)  # Initial mask
-
-            framehsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-            cv2.imshow("h", framehsv[:, :, 0])
-            cv2.imshow("s", framehsv[:, :, 1])
-            cv2.imshow("v", framehsv[:, :, 2])
-            frame = framehsv[:, :, 1]
-
-            fg_img = bs.apply(frame, learningRate=learn_rate)
-            bg_img = bs.getBackgroundImage()
-
-            # Remove Shadows
-            ret, fg_img = cv2.threshold(fg_img, 192, 255, cv2.THRESH_BINARY)
-
-
-            # Noise removal functions
-            fg_mask = apply_filter(fg_img)
-            fg_mask2 = fg_mask.copy()
-            fg_mask = cv2.bitwise_and(fg_mask, fg_mask, mask=vroi2)  # Second ROI mask
-            fg_mask = apply_morphology(fg_mask)
-            # fg_mask = fill_regions(fg_mask)
-
-            # Segment the foreground using the foreground mask
-            fg_seg = cv2.bitwise_and(frame, frame, mask=fg_mask)
-
-            ###############################
-            ### Post-processing Done
-            ###############################
-            # visualization of generating mask
-            if arg_in.play:
-                # Concatenate frame, background, foreground, segmented foreground
-                f1 = np.concatenate((frame, bg_img), axis=0)
-                f2 = np.concatenate((fg_img, fg_seg), axis=0)
-                comb_frame = np.concatenate((f1, f2), axis=1)
-
-                cv2.imshow("frame", comb_frame)
-
-                # cv2.imshow("fg", fg_mask2)
-                cv2.imshow("fg",  cv2.threshold(cv2.blur(fg_img, (5, 5)), 128, 255, cv2.THRESH_BINARY)[1])
-
-                kp = cv2.waitKey(5)
-                if kp == ord('s'):
-                    sv_frame = cv2.resize(bg_img, None, fx=1/scale, fy=1/scale)
-                    cv2.imwrite(dirname + "bg_img_{0}_{1}_{2}_{3}.jpg".format(*v.split('/')[1:-1], str(uuid.uuid4())[0:10] ), bg_img)
-                elif kp == ord('n'):
-                    break
-                elif kp == ord('q'):
-                    cv2.destroyAllWindows()
-                    exit(0)
-
+def main(argv):
+    bg_subtract(argv)
 
 
 def bg_subtract(arg_in):
@@ -183,13 +27,13 @@ def bg_subtract(arg_in):
     """
     global vpath
     # Only run specific videos (specify here)
-    # vpath = [vpath[44], vpath[54], vpath[55]]
-    for v in vpath[41:]:  # Test Videos only, modify this to include other videos
+    vpath = [vpath[44], vpath[54], vpath[55]]
+    for v in vpath:  # Test Videos only, modify this to include other videos
         # Setup VideoCapture object (read Video)
         cap = cv2.VideoCapture(v + "vdo.avi")
 
         # Target directory name
-        dirname = "./temp/{0}_{1}_{2}/".format(*v.split('/')[1:-1])
+        dirname = "./temp/{0}_{1}_{2}/".format(*v.split('/')[2:-1])
         mkdir_ifndef(dirname)   # Make directory if not exist
 
         # get video width/height, modified by scale
@@ -200,12 +44,12 @@ def bg_subtract(arg_in):
             v_out = cv2.VideoWriter(dirname + 'v_out.avi', fourcc, 10.0, (2*vh, 2*vw))
             fg_out = cv2.VideoWriter(dirname + 'fg_roi.avi', fourcc, 10.0, (vh, vw))
 
-        # Read in ROI images, first is applied before background subtraction
-        vroi = cv2.imread(v + "roi.jpg", cv2.IMREAD_GRAYSCALE)
-        vroi = cv2.resize(vroi, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-        # Applied after filter
-        vroi2 = cv2.imread(v + "roi.jpg", cv2.IMREAD_GRAYSCALE)
-        vroi2 = cv2.resize(vroi2, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        # # Read in ROI images, first is applied before background subtraction
+        # vroi = cv2.imread(v + "roi.jpg", cv2.IMREAD_GRAYSCALE)
+        # vroi = cv2.resize(vroi, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        # # Applied after filter
+        # vroi2 = cv2.imread(v + "roi.jpg", cv2.IMREAD_GRAYSCALE)
+        # vroi2 = cv2.resize(vroi2, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
 
         """MOG2 Background Subtractor
         Background Ratio (TB)               If a foreground pixel keeps semi-constant value for about backgroundRatio*history frames, it's considered background
@@ -225,7 +69,8 @@ def bg_subtract(arg_in):
         bs.setVarInit(arg_in.variance_init)                     # Initial Variance of new Mixtures (def 15)
         bs.setVarThreshold(arg_in.variance)                     # Variance threshold to trigger (def 16)
         # bs.setComplexityReductionThreshold(arg_in.complexity)   # Complexity Reduction Threshold (def 0.05)
-        learn_rate = 0.07                                       # Initial Learning rate
+        learn_rate = 0.05                                       # Initial Learning rate
+        lr_road = arg_in.road_learn_rate
 
         # conditions for complexity/learning_rate defaults (-1)
         if arg_in.complexity < 0 or arg_in.learn_rate < 0:
@@ -246,6 +91,8 @@ def bg_subtract(arg_in):
               "\tComplexity Reduction Threshold (frames) = {:0.0f}\n"
               "\tN-Mixtures = {:0.0f}".format(vh, vw, bs.getBackgroundRatio(), bs.getHistory(), bs.getVarThreshold(), learn_rate, arg_in.learn_rate, cmpx_reduction_factor, cmpx_reduction_frames,  bs.getNMixtures()))
 
+        frame_road = np.zeros(shape=(vw, vh), dtype=np.uint8)    # Aggregate frame
+
         # Read every frame of video
         while True:
             ret, frame = cap.read()
@@ -264,12 +111,7 @@ def bg_subtract(arg_in):
             # frame = cv2.blur(frame, (5, 5))  # Initial Blurring before downscale
 
             frame = cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-            frame = cv2.bitwise_and(frame, frame, mask=vroi)  # Initial mask
-
-            framehsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-            cv2.imshow("h", framehsv[:, :, 0])
-            cv2.imshow("s", framehsv[:, :, 1])
-            cv2.imshow("v", framehsv[:, :, 2])
+            # frame = cv2.bitwise_and(frame, frame, mask=vroi)  # Initial mask
 
             fg_img = bs.apply(frame, learningRate=learn_rate)
             bg_img = bs.getBackgroundImage()
@@ -281,12 +123,16 @@ def bg_subtract(arg_in):
             # Noise removal functions
             fg_mask = apply_filter(fg_img)
             fg_mask2 = fg_mask.copy()
-            fg_mask = cv2.bitwise_and(fg_mask, fg_mask, mask=vroi2)  # Second ROI mask
+            # fg_mask = cv2.bitwise_and(fg_mask, fg_mask, mask=vroi2)  # Second ROI mask
             fg_mask = apply_morphology(fg_mask)
             # fg_mask = fill_regions(fg_mask)
 
             # Segment the foreground using the foreground mask
             fg_seg = cv2.bitwise_and(frame, frame, mask=fg_mask)
+
+            # Perform operations on the aggregate frame
+            frame_road = cv2.addWeighted(frame_road, 1-lr_road, fg_mask, lr_road, 0)
+            # frame_agg = cv2.threshold(frame_agg, 5, 255, cv2.THRESH_TOZERO)[-1]
 
             ###############################
             ### Post-processing Done
@@ -303,10 +149,12 @@ def bg_subtract(arg_in):
                 # cv2.imshow("fg", fg_mask2)
                 cv2.imshow("fg",  cv2.threshold(cv2.blur(fg_img, (5, 5)), 128, 255, cv2.THRESH_BINARY)[1])
 
+                cv2.imshow("road heatmap", frame_road)	
+
                 kp = cv2.waitKey(5)
                 if kp == ord('s'):
                     sv_frame = cv2.resize(bg_img, None, fx=1/scale, fy=1/scale)
-                    cv2.imwrite(dirname + "bg_img_{0}_{1}_{2}_{3}.jpg".format(*v.split('/')[1:-1], str(uuid.uuid4())[0:10] ), bg_img)
+                    cv2.imwrite(dirname + "bg_img_{0}_{1}_{2}_{3}.jpg".format(*v.split('/')[2:-1], str(uuid.uuid4())[0:10] ), bg_img)
                 elif kp == ord('n'):
                     break
                 elif kp == ord('q'):
@@ -321,6 +169,8 @@ def bg_subtract(arg_in):
 
                 v_out.write(comb_frame)
 
+        cv2.imwrite(dirname + "road_img_{0}_{1}_{2}_{3}.jpg".format(*v.split('/')[2:-1], str(uuid.uuid4())[0:10]), frame_road)
+
         # Release VideoCapture instances
         if arg_in.video:
             cap.release()
@@ -331,7 +181,7 @@ def bg_subtract(arg_in):
         # Save background image
         if arg_in.image:
             bg_img = bs.getBackgroundImage()
-            cv2.imwrite(dirname + " bg_img_{0}_{1}_{2}.jpg".format(*v.split('/')[1:-1]), bg_img)
+            cv2.imwrite(dirname + " bg_img_{0}_{1}_{2}.jpg".format(*v.split('/')[2:-1]), bg_img)
 
 
 def apply_filter(frame):
@@ -395,11 +245,29 @@ def fill_regions(frame):
 
 def mkdir_ifndef(dirname):
     if not os.path.isdir(dirname):
-        os.mkdir(dirname)
+        os.makedirs(dirname)
 
 
 if __name__ == "__main__":
-    main()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-i", "--image", action="store_true", default=False, help="save background images")
+    ap.add_argument("-v", "--video", action="store_true", default=False, help="save bg/fg videos")
+    ap.add_argument("-p", "--play", action="store_true", default=False, help="Show current frames (will incur runtime increase)")
+
+    ap.add_argument("-ld", "--lane_detect", action="store_true", default=False, help="lane detection")
+
+    ap.add_argument("-bgr", "--bgratio", action="store", type=float, default=0.9, help="If a foreground pixel keeps semi-constant value for about backgroundRatio*history frames, it's considered background")
+    ap.add_argument("-ct", "--complexity", action="store", type=float, default=-1, help="(frames) measure of the maximum portion of the data that can belong to foreground objects without influencing the background model")
+    ap.add_argument("-hist", "--history", action="store", type=int, default=128, help="number of last frames that affect the background model.")
+    ap.add_argument("-var", "--variance", action="store", type=int, default=9, help="variance threshold for the pixel-model match")
+    ap.add_argument("-vinit", "--variance_init", action="store", type=int, default=15, help="initial variance of each gaussian component.")
+    ap.add_argument("-nmix", "--nmixtures", action="store", type=int, default=5, help="number of gaussian components in the background model.")
+    ap.add_argument("-lr", "--learn_rate", action="store", type=float, default=-1, help="value between 0 and 1 that indicates how fast the background model is learnt")
+
+    ap.add_argument("-road_lr", "--road_learn_rate", action="store", type=float, default=0.01, help="Road learning rate")
+
+    arg_in = ap.parse_args()
+    main(arg_in)
 
 """
 def lane_detect(arg_in):
@@ -468,4 +336,143 @@ def lane_detect(arg_in):
 #         cv2.imwrite("./ld_res/"+"ln_detect_{0}_{1}_{2}.jpg".format(*v.split('/')[1:-1]), out)
 #         cap.release()
 
-"""
+
+
+# def hsv_test(arg_in):
+#     """
+#     MOG2 Paper: http://www.zoranz.net/Publications/zivkovicPRL2006.pdf
+#     python3 bgfg_generate.py -v -i -hist 256 -nmix 4 -var 25 -bgr 0.6 -lr 0.005 -ct 256
+
+#     """
+#     global vpath
+#     # Only run specific videos (specify here)
+#     # vpath = [vpath[44], vpath[54], vpath[55]]
+#     for v in vpath[41:]:  # Test Videos only, modify this to include other videos
+#         # Setup VideoCapture object (read Video)
+#         cap = cv2.VideoCapture(v + "vdo.avi")
+
+#         # Target directory name
+#         dirname = "./temp/{0}_{1}_{2}/".format(*v.split('/')[1:-1])
+#         mkdir_ifndef(dirname)   # Make directory if not exist
+
+#         # get video width/height, modified by scale
+#         vh = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)*scale)
+#         vw = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)*scale)
+#         if arg_in.video:
+#             fourcc = cv2.VideoWriter_fourcc(*'XVID')
+#             v_out = cv2.VideoWriter(dirname + 'v_out.avi', fourcc, 10.0, (2*vh, 2*vw))
+#             fg_out = cv2.VideoWriter(dirname + 'fg_roi.avi', fourcc, 10.0, (vh, vw))
+
+#         # # Read in ROI images, first is applied before background subtraction
+#         # vroi = cv2.imread(v + "roi.jpg", cv2.IMREAD_GRAYSCALE)
+#         # vroi = cv2.resize(vroi, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+#         # # Applied after filter
+#         # vroi2 = cv2.imread(v + "roi.jpg", cv2.IMREAD_GRAYSCALE)
+#         # vroi2 = cv2.resize(vroi2, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+
+#         """MOG2 Background Subtractor
+#         Background Ratio (TB)               If a foreground pixel keeps semi-constant value for about backgroundRatio*history frames, it's considered background
+#         Complexity Reduction Threshold (Cf) measure of the maximum portion of the data that can belong to foreground objects without influencing the background model
+#                                             For a foreground pixel to become background, it should be static for log(1-Cf)/log(1-alpha)
+
+#         History:                            number of last frames that affect the background model.
+#         N-Mixtures:                         number of gaussian components in the background model.
+#         Variance Threshold (C_thr):         variance threshold for the pixel-model match.
+#         Initial Variance                    initial variance of each gaussian component.
+#         """
+#         bs = cv2.createBackgroundSubtractorMOG2(detectShadows=True)
+
+#         bs.setBackgroundRatio(arg_in.bgratio)                   # Background Ratio (def: 0.9)
+#         bs.setHistory(arg_in.history)                           # History (def 500)
+#         bs.setNMixtures(arg_in.nmixtures)                       # Number of Gaussian Mixtures (def 5)
+#         bs.setVarInit(arg_in.variance_init)                     # Initial Variance of new Mixtures (def 15)
+#         bs.setVarThreshold(arg_in.variance)                     # Variance threshold to trigger (def 16)
+#         # bs.setComplexityReductionThreshold(arg_in.complexity)   # Complexity Reduction Threshold (def 0.05)
+#         learn_rate = 0.05                                      # Initial Learning rate
+
+#         # conditions for complexity/learning_rate defaults (-1)
+#         if arg_in.complexity < 0 or arg_in.learn_rate < 0:
+#             cmpx_reduction_factor = 0.05
+#             cmpx_reduction_frames = -1
+#         else:
+#             cmpx_reduction_frames = arg_in.complexity
+#             cmpx_reduction_factor = 1 - np.exp(arg_in.complexity * np.log(1-arg_in.learn_rate))
+
+#         print("Setting up MOG2 Background subtractor...\n"
+#               "\tImage Resolution = {:0.0f}x{:0.0f}\n"
+#               "\tBackground Ratio = {:0.3f}\n"
+#               "\tHistory = {:0.0f}\n"
+#               "\tVariance = {:0.0f}\n"
+#               "\tLearning Rate (< History) = {:0.3f}\n"
+#               "\tLearning Rate (>= History) = {:0.3f}\n"
+#               "\tComplexity Reduction Threshold (ratio) = {:0.3f}\n"
+#               "\tComplexity Reduction Threshold (frames) = {:0.0f}\n"
+#               "\tN-Mixtures = {:0.0f}".format(vh, vw, bs.getBackgroundRatio(), bs.getHistory(), bs.getVarThreshold(), learn_rate, arg_in.learn_rate, cmpx_reduction_factor, cmpx_reduction_frames,  bs.getNMixtures()))
+
+#         frame_agg = np.zeros(shape=(vh, vw))    # Aggregate frame
+
+#         # Read every frame of video
+#         while True:
+#             ret, frame = cap.read()
+#             frame_num = cap.get(cv2.CAP_PROP_POS_FRAMES)  # Current frame number
+#             if not ret:  # false if at end of Video
+#                 break
+
+#             # Set trigger for changing learning rate
+#             if frame_num < bs.getHistory():
+#                 learn_rate = arg_in.learn_rate + (learn_rate - arg_in.learn_rate) * 0.98
+#             elif frame_num == bs.getHistory():
+#                 learn_rate = arg_in.learn_rate
+#                 bs.setComplexityReductionThreshold(cmpx_reduction_factor)
+
+#             frame = cv2.GaussianBlur(frame, (5, 5), 0)  # Initial Blurring before downscale
+#             # frame = cv2.blur(frame, (5, 5))  # Initial Blurring before downscale
+
+#             frame = cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+#             # frame = cv2.bitwise_and(frame, frame, mask=vroi)  # Initial mask
+
+#             fg_img = bs.apply(frame, learningRate=learn_rate)
+#             bg_img = bs.getBackgroundImage()
+
+#             # Remove Shadows
+#             ret, fg_img = cv2.threshold(fg_img, 192, 255, cv2.THRESH_BINARY)
+
+#             # Noise removal functions
+#             fg_mask = apply_filter(fg_img)
+#             fg_mask2 = fg_mask.copy()
+#             # fg_mask = cv2.bitwise_and(fg_mask, fg_mask, mask=vroi2)  # Second ROI mask
+#             fg_mask = apply_morphology(fg_mask)
+#             # fg_mask = fill_regions(fg_mask)
+
+#             # Perform operations on the aggregate frame
+#             frame_agg = cv2.addWeighted(frame_agg, 1-learn_rate, fg_mask, learn_rate, 0)
+#             frame_agg = cv2.threshold(frame_agg, 10, 255, cv2.THRESH_TOZERO)
+#             cv2.imshow("aggregate frame", frame_agg)
+
+#             # Segment the foreground using the foreground mask
+#             fg_seg = cv2.bitwise_and(frame, frame, mask=fg_mask)
+
+#             ###############################
+#             ### Post-processing Done
+#             ###############################
+#             # visualization of generating mask
+#             if arg_in.play:
+#                 # Concatenate frame, background, foreground, segmented foreground
+#                 f1 = np.concatenate((frame, bg_img), axis=0)
+#                 f2 = np.concatenate((fg_img, fg_seg), axis=0)
+#                 comb_frame = np.concatenate((f1, f2), axis=1)
+
+#                 cv2.imshow("frame", comb_frame)
+
+#                 # cv2.imshow("fg", fg_mask2)
+#                 cv2.imshow("fg",  cv2.threshold(cv2.blur(fg_img, (5, 5)), 128, 255, cv2.THRESH_BINARY)[1])
+
+#                 kp = cv2.waitKey(5)
+#                 if kp == ord('s'):
+#                     sv_frame = cv2.resize(bg_img, None, fx=1/scale, fy=1/scale)
+#                     cv2.imwrite(dirname + "bg_img_{0}_{1}_{2}_{3}.jpg".format(*v.split('/')[1:-1], str(uuid.uuid4())[0:10] ), bg_img)
+#                 elif kp == ord('n'):
+#                     break
+#                 elif kp == ord('q'):
+#                     cv2.destroyAllWindows()
+#                     exit(0)

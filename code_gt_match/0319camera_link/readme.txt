@@ -1,0 +1,1 @@
+第一個column 是waypoint, 接下來就是vector_direction (0 means entering, 1 means leaving) 以及 vector_id 

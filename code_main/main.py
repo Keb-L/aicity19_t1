@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 
 gbl_gmap_zoom = 17  # Google Maps Zoom factor (global)
 
-linkmat_path = "./cfg/link_matrix_s5.csv"  # Link Matrix
+linkmat_path = "./cfg/link_matrix_sOther.csv"  # Link Matrix
 waypoint_path = "./cfg/waypoints_1_40_v4.txt"  # Waypoint Description
 cam_wp_path = "./cfg/cam_to_waypoint_v4.txt"  # Camera to Waypoint Map
 

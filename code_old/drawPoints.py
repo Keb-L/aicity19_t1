@@ -17,30 +17,32 @@ import DataIO
 # Global declarations
 VID_NAME = 'vdo.avi'
 # VIDPATH = glob.glob('../train/S*/c*/' + VID_NAME)
-with open('list_cam_u.txt') as f:
+with open('./lib/list_cam_test.txt') as f:
     VIDPATH = f.read().splitlines()
 
-scale = 0.5
+scale = 1
 en_dump = True
 
 def main(argv):
     if not argv:
         argv = [1, 40]
     cam_range = range(int(argv[0])-1, int(argv[1]))
-    all_pt = DataIO.ld_camlink("obj/track1_all.txt", 40, 1)
+    all_pt = DataIO.ld_camlink("./data/cam_vect_1_40_clean.txt", 40, 1)
 
-    for camid in cam_range:
-        vpath = VIDPATH[camid] + VID_NAME
+    # for camid in cam_range:
+    for vpath in VIDPATH:
+        camid = int(*re.findall("c([\d]{3})", vpath)) - 1
+        # vpath = VIDPATH[camid] + VID_NAME
 
          # Instantiate Video Capture
-        cap = cv2.VideoCapture(vpath)
+        cap = cv2.VideoCapture(vpath + VID_NAME)
 
         # Read the first frame
         ret, frame = cap.read()
         if not ret:     # if no frame read, continue
             continue
 
-        ptlist = all_pt[camid][0]
+        ptlist = all_pt[camid+1][0]
         for pt in ptlist:
             if(all(pt < 0)): # Exit point
                 frame = cv2.circle(frame, tuple(abs(pt)), 10, (255, 0, 0), -1)
