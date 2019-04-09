@@ -25,7 +25,6 @@ colormap = {'black':    '0x000000',
 def main(argv):
     if argv:
         argv = list(map(int, argv))
-    # gmaps = googlemaps.Client(key='AIzaSyBLWctOyJYmEg4j-sZIWxvBWswzgIFUd2U')
 
     with open("./data/waypoints_1_40_v3.txt", "r") as f:
         gpslist = f.read().splitlines()
@@ -61,7 +60,7 @@ def gmaps_dir_main(wplist, wp_gps):
     :param wp_gps: waypoint pairs list
     :return:
     """
-    gmaps = googlemaps.Client(key='AIzaSyAcrr9cNHjm1IIgt1txjG9TAL-r5_Bx5TY')
+    gmaps = googlemaps.Client(key='your key')
 
     # req = googlemaps.directions()
     # Define directions parameters
@@ -107,7 +106,7 @@ def staticAPI_poly_main(path_dict):
 
     baseURL = 'https://maps.googleapis.com/maps/api/staticmap?'
 
-    apikey = 'AIzaSyAcrr9cNHjm1IIgt1txjG9TAL-r5_Bx5TY'
+    apikey = 'your key'
     mapsize = [640, 640]
     mapstyle = 'style=feature:all|element:labels|visibility:off'
     sz = None  # {None, small, mid, tiny}
@@ -177,7 +176,7 @@ def staticAPI_marker_main(gpslist):
     #             ex_ct = 0
     #         marker_list.append([*lvect.gps[0:2], marker_lbl, marker_c])
 
-    apikey = 'AIzaSyAcrr9cNHjm1IIgt1txjG9TAL-r5_Bx5TY'
+    apikey = 'your key'
     mapsize = [640, 640]
     sz = None # {None, small, mid, tiny}
     mapscale = 2

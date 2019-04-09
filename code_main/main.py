@@ -412,7 +412,7 @@ def gmaps_static_poly_main(cfg, s_id=None, cam_range=None):
 def gmaps_static_poly_img(path_list):
     baseURL = 'https://maps.googleapis.com/maps/api/staticmap?'
 
-    apikey = 'AIzaSyAcrr9cNHjm1IIgt1txjG9TAL-r5_Bx5TY'
+    apikey = 'your key'
     mapsize = [640, 640]
     mapstyle = 'style=feature:all|element:labels|visibility:off'
     sz = None  # {None, small, mid, tiny}
@@ -460,7 +460,7 @@ def gmaps_static_marker_main(cfg, s_id=None, cam_range=None):
 
 def gmaps_static_marker_img(gps_list):
     baseURL = 'https://maps.googleapis.com/maps/api/staticmap?'
-    apikey = 'AIzaSyAcrr9cNHjm1IIgt1txjG9TAL-r5_Bx5TY'
+    apikey = 'your key'
     mapsize = [640, 640]
     mapstyle = 'style=feature:all|element:labels|visibility:off'
     sz = None  # {None, small, mid, tiny}
@@ -573,7 +573,7 @@ def gmaps_dir_extract(gps, departure_time="now"):
 
     o, d = gps
 
-    gmaps = googlemaps.Client(key='AIzaSyAcrr9cNHjm1IIgt1txjG9TAL-r5_Bx5TY')
+    gmaps = googlemaps.Client(key='your key')
     query = gmaps.directions(origin=o, destination=d,
                              mode=mode, units=units, language=language, departure_time=departure_time,
                              traffic_model=traffic_model)
